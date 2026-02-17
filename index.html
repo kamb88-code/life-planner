@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=life_planner_app.html">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Planner - Redirecting...</title>
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #FFF8F0 0%, #FFFCF7 50%, #FFF5F0 100%);
+            margin: 0;
+        }
+        .message {
+            text-align: center;
+            color: #5C3D2E;
+        }
+        .message h1 {
+            font-size: 2rem;
+            color: #B05070;
+            margin-bottom: 1rem;
+        }
+        .spinner {
+            border: 4px solid rgba(212, 116, 138, 0.2);
+            border-top: 4px solid #D4748A;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h1>Life Planner</h1>
+        <div class="spinner"></div>
+        <p>Redirecting to your planner...</p>
+        <p style="margin-top: 2rem; font-size: 0.9rem;">
+            <a href="life_planner_app.html" style="color: #D4748A; text-decoration: none; font-weight: 600;">Click here if not redirected automatically</a>
+        </p>
+    </div>
+</body>
+</html>
