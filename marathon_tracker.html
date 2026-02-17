@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detroit Marathon Training Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="max-w-6xl mx-auto p-6 min-h-screen">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2" id="appTitle">Marathon Training Tracker</h1>
+            <p class="text-gray-600" id="appSubtitle">Manage your training plans</p>
+        </div>
+
+        <div class="flex gap-2 mb-6">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-4 py-2 rounded-lg font-semibold bg-blue-600 text-white">
+                Dashboard
+            </button>
+            <button onclick="switchTab('plan')" id="tab-plan" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100">
+                Training Plan
+            </button>
+            <button onclick="switchTab('strength')" id="tab-strength" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100">
+                Strength Training
+            </button>
+            <button onclick="switchTab('races')" id="tab-races" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100">
+                My Races
+            </button>
+        </div>
+
+        <div id="content"></div>
+    </div>
+
+    <!-- Pace Modal -->
+    <div id="paceModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Log Your Run</h3>
+            
+            <div class="mb-4">
+                <div class="text-sm text-gray-600 mb-2" id="modalWeekDay"></div>
+                <div class="text-2xl font-bold text-blue-600" id="modalDistance"></div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-semibold mb-2">Duration (minutes)</label>
+                <input
+                    type="number"
+                    step="0.1"
+                    id="durationInput"
+                    placeholder="45"
+                    class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-lg"
+                />
+                <div class="text-xs text-gray-500 mt-1">
+                    How many minutes did it take to complete this run?
+                </div>
+                <div id="calculatedPace" class="mt-2 text-sm font-semibold text-green-700 hidden"></div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-semibold mb-3">How did the run feel?</label>
+                <div class="grid grid-cols-5 gap-2" id="feelingButtons"></div>
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="closePaceModal()" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button onclick="saveRun()" id="saveRunBtn" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Save Run
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Race Modal -->
+    <div id="raceModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-4" id="raceModalTitle">Add New Race</h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Race Name</label>
+                    <input
+                        type="text"
+                        id="raceNameInput"
+                        placeholder="e.g., Detroit Marathon"
+                        class="w-full border-2 border-gray-300 rounded-lg px-4 py-2"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Race Date</label>
+                    <input
+                        type="date"
+                        id="raceDateInput"
+                        class="w-full border-2 border-gray-300 rounded-lg px-4 py-2"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Training Plan</label>
+                    <select
+                        id="raceTemplateInput"
+                        class="w-full border-2 border-gray-300 rounded-lg px-4 py-2"
+                    >
+                        <option value="half-novice-1">Half Marathon Novice 1 (12 weeks)</option>
+                        <option value="marathon-novice-2">Marathon Novice 2 - Hal Higdon (18 weeks)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Start Date</label>
+                    <input
+                        type="date"
+                        id="raceStartDateInput"
+                        class="w-full border-2 border-gray-300 rounded-lg px-4 py-2"
+                    />
+                    <div class="text-xs text-gray-500 mt-1" id="startDateHint">
+                        Auto-calculated based on race date and plan length
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeRaceModal()" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button onclick="saveRaceModal()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
+                    Save Race
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let runs = [];
+        let strengthWorkouts = [];
+        let races = [];
+        let activeRaceId = null;
+        let activeTab = 'dashboard';
+        let selectedMonth = 0;
+        let currentPaceData = { week: null, day: null, distance: null, duration: '', feeling: '' };
+        let showRaceModal = false;
+        let editingRaceId = null;
+
+        // Training plan templates
+        const trainingTemplates = {
+            'half-novice-1': {
+                name: 'Half Marathon Novice 1',
+                weeks: 12,
+                plan: {
+                    1: { mon: 'Rest', tue: '3 mi', wed: '3 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '4 mi' },
+                    2: { mon: 'Rest', tue: '3 mi', wed: '3 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '5 mi' },
+                    3: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '6 mi' },
+                    4: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '7 mi' },
+                    5: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '8 mi' },
+                    6: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '9 mi' },
+                    7: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '10 mi' },
+                    8: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '8 mi' },
+                    9: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '11 mi' },
+                    10: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '12 mi' },
+                    11: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '9 mi' },
+                    12: { mon: 'Rest', tue: '3 mi', wed: '2 mi', thu: 'Rest', fri: 'Rest', sat: '2 mi', sun: 'RACE!' }
+                }
+            },
+            'marathon-novice-2': {
+                name: 'Marathon Novice 2 (Hal Higdon)',
+                weeks: 18,
+                plan: {
+                    1: { mon: 'Rest', tue: '3 mi', wed: '3 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '6 mi' },
+                    2: { mon: 'Rest', tue: '3 mi', wed: '3 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '7 mi' },
+                    3: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '3 mi', sun: '5 mi' },
+                    4: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '9 mi' },
+                    5: { mon: 'Rest', tue: '3 mi', wed: '4 mi', thu: '3 mi', fri: 'Rest', sat: '4 mi', sun: '10 mi' },
+                    6: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '5 mi', sun: '7 mi' },
+                    7: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '5 mi', sun: '12 mi' },
+                    8: { mon: 'Rest', tue: '3 mi', wed: '5 mi', thu: '3 mi', fri: 'Rest', sat: '5 mi', sun: '13 mi' },
+                    9: { mon: 'Rest', tue: '3 mi', wed: '6 mi', thu: '3 mi', fri: 'Rest', sat: '6 mi', sun: '10 mi' },
+                    10: { mon: 'Rest', tue: '3 mi', wed: '6 mi', thu: '3 mi', fri: 'Rest', sat: '6 mi', sun: '15 mi' },
+                    11: { mon: 'Rest', tue: '4 mi', wed: '6 mi', thu: '4 mi', fri: 'Rest', sat: '6 mi', sun: '16 mi' },
+                    12: { mon: 'Rest', tue: '4 mi', wed: '7 mi', thu: '4 mi', fri: 'Rest', sat: '7 mi', sun: '12 mi' },
+                    13: { mon: 'Rest', tue: '4 mi', wed: '7 mi', thu: '4 mi', fri: 'Rest', sat: '7 mi', sun: '18 mi' },
+                    14: { mon: 'Rest', tue: '5 mi', wed: '8 mi', thu: '5 mi', fri: 'Rest', sat: '8 mi', sun: '14 mi' },
+                    15: { mon: 'Rest', tue: '5 mi', wed: '8 mi', thu: '5 mi', fri: 'Rest', sat: '8 mi', sun: '20 mi' },
+                    16: { mon: 'Rest', tue: '5 mi', wed: '5 mi', thu: '5 mi', fri: 'Rest', sat: '5 mi', sun: '12 mi' },
+                    17: { mon: 'Rest', tue: '4 mi', wed: '4 mi', thu: '4 mi', fri: 'Rest', sat: '3 mi', sun: '8 mi' },
+                    18: { mon: 'Rest', tue: '3 mi', wed: '2 mi', thu: 'Rest', fri: 'Rest', sat: '2 mi', sun: 'RACE!' }
+                }
+            }
+        };
+
+        const strengthExercises = {
+            legs: ['Squats', 'Lunges', 'Calf Raises', 'Step-ups', 'Glute Bridges'],
+            core: ['Planks', 'Russian Twists', 'Dead Bugs', 'Bicycle Crunches', 'Side Planks'],
+            upper: ['Push-ups', 'Rows', 'Shoulder Press', 'Pull-ups', 'Tricep Dips']
+        };
+
+        let selectedExercises = [];
+        let customExercise = '';
+        let editMode = false;
+        let customSchedules = {}; // Store custom schedules per race
+
+        const months = [
+            { name: 'June 2026', weeks: [1, 2, 3, 4] },
+            { name: 'July 2026', weeks: [5, 6, 7, 8, 9] },
+            { name: 'August 2026', weeks: [10, 11, 12, 13] },
+            { name: 'September 2026', weeks: [14, 15, 16, 17] },
+            { name: 'October 2026', weeks: [18] }
+        ];
+
+        const feelings = [
+            { value: 'great', emoji: '😊', label: 'Great' },
+            { value: 'good', emoji: '🙂', label: 'Good' },
+            { value: 'okay', emoji: '😐', label: 'Okay' },
+            { value: 'tough', emoji: '😓', label: 'Tough' },
+            { value: 'hard', emoji: '😩', label: 'Hard' }
+        ];
+
+        // Storage functions
+        async function loadData() {
+            // Check if storage API is available
+            if (!window.storage) {
+                console.warn('Storage API not available - using default race');
+                races = [{
+                    id: Date.now(),
+                    name: 'Detroit Marathon',
+                    date: '2026-10-18',
+                    startDate: '2026-06-01',
+                    template: 'marathon-novice-2',
+                    active: true
+                }];
+                activeRaceId = races[0].id;
+                render();
+                return;
+            }
+            
+            try {
+                const runsData = await window.storage.get('marathon-runs');
+                const strengthData = await window.storage.get('marathon-strength');
+                const racesData = await window.storage.get('marathon-races');
+                const schedulesData = await window.storage.get('marathon-schedules');
+                
+                if (runsData) runs = JSON.parse(runsData.value);
+                if (strengthData) strengthWorkouts = JSON.parse(strengthData.value);
+                if (schedulesData) customSchedules = JSON.parse(schedulesData.value);
+                if (racesData) {
+                    races = JSON.parse(racesData.value);
+                } else {
+                    // Create default Detroit Marathon race
+                    races = [{
+                        id: Date.now(),
+                        name: 'Detroit Marathon',
+                        date: '2026-10-18',
+                        startDate: '2026-06-01',
+                        template: 'marathon-novice-2',
+                        active: true
+                    }];
+                    await window.storage.set('marathon-races', JSON.stringify(races));
+                }
+                
+                // Set active race
+                const activeRace = races.find(r => r.active);
+                activeRaceId = activeRace ? activeRace.id : (races.length > 0 ? races[0].id : null);
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                runs = [];
+                strengthWorkouts = [];
+                races = [{
+                    id: Date.now(),
+                    name: 'Detroit Marathon',
+                    date: '2026-10-18',
+                    startDate: '2026-06-01',
+                    template: 'marathon-novice-2',
+                    active: true
+                }];
+                activeRaceId = races[0].id;
+            }
+            render();
+        }
+
+        async function saveRunData(run) {
+            runs.push({ ...run, id: Date.now(), raceId: activeRaceId });
+            if (window.storage) {
+                await window.storage.set('marathon-runs', JSON.stringify(runs));
+            }
+            render();
+        }
+
+        async function saveStrengthData(workout) {
+            strengthWorkouts.push({ ...workout, id: Date.now(), raceId: activeRaceId });
+            if (window.storage) {
+                await window.storage.set('marathon-strength', JSON.stringify(strengthWorkouts));
+            }
+            render();
+        }
+
+        async function saveRaces() {
+            if (!window.storage) {
+                console.warn('Storage API not available');
+                render();
+                return;
+            }
+            
+            try {
+                await window.storage.set('marathon-races', JSON.stringify(races));
+                render();
+            } catch (error) {
+                console.error('Error saving races:', error);
+                alert('Error saving race. Please try again.');
+            }
+        }
+
+        function getActiveRace() {
+            return races.find(r => r.id === activeRaceId) || races[0];
+        }
+
+        function getTrainingPlan() {
+            const race = getActiveRace();
+            if (!race) return {};
+            
+            // If in edit mode, use temp schedule
+            if (editMode && tempSchedule) {
+                return tempSchedule;
+            }
+            
+            // Check if there's a custom schedule for this race
+            if (customSchedules[activeRaceId]) {
+                return customSchedules[activeRaceId];
+            }
+            
+            return trainingTemplates[race.template].plan;
+        }
+
+        async function saveCustomSchedule(schedule) {
+            customSchedules[activeRaceId] = schedule;
+            if (window.storage) {
+                await window.storage.set('marathon-schedules', JSON.stringify(customSchedules));
+            }
+        }
+
+        function getTotalWeeks() {
+            const race = getActiveRace();
+            return race ? trainingTemplates[race.template].weeks : 18;
+        }
+
+        function getStartDate() {
+            const race = getActiveRace();
+            return race ? new Date(race.startDate) : new Date();
+        }
+
+        function getRaceDate() {
+            const race = getActiveRace();
+            return race ? new Date(race.date) : new Date();
+        }
+
+        function getMonthsForRace() {
+            const race = getActiveRace();
+            if (!race) return [];
+            
+            const template = trainingTemplates[race.template];
+            const totalWeeks = template.weeks;
+            const startDate = new Date(race.startDate);
+            const months = [];
+            
+            let currentMonth = startDate.getMonth();
+            let currentYear = startDate.getFullYear();
+            let weekCounter = 1;
+            
+            while (weekCounter <= totalWeeks) {
+                const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+                const weeksInMonth = [];
+                
+                const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+                
+                while (weekCounter <= totalWeeks) {
+                    const weekStartDate = new Date(startDate);
+                    weekStartDate.setDate(startDate.getDate() + (weekCounter - 1) * 7);
+                    
+                    if (weekStartDate.getMonth() !== currentMonth) break;
+                    
+                    weeksInMonth.push(weekCounter);
+                    weekCounter++;
+                }
+                
+                if (weeksInMonth.length > 0) {
+                    months.push({ name: monthName, weeks: weeksInMonth });
+                }
+                
+                currentMonth++;
+                if (currentMonth > 11) {
+                    currentMonth = 0;
+                    currentYear++;
+                }
+            }
+            
+            return months;
+        }
+
+        // Utility functions
+        function getCurrentWeek() {
+            const today = new Date();
+            const startDate = getStartDate();
+            const diffTime = today - startDate;
+            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7)) + 1;
+            return Math.max(1, Math.min(diffWeeks, getTotalWeeks()));
+        }
+
+        function getDaysUntilRace() {
+            const raceDate = getRaceDate();
+            return Math.ceil((raceDate - new Date()) / (1000 * 60 * 60 * 24));
+        }
+
+        function getTotalMiles() {
+            return runs.filter(r => r.raceId === activeRaceId)
+                .reduce((sum, run) => sum + parseFloat(run.distance || 0), 0).toFixed(1);
+        }
+
+        function getWeekMiles(week) {
+            return runs.filter(r => r.week === week && r.raceId === activeRaceId)
+                .reduce((sum, run) => sum + parseFloat(run.distance || 0), 0).toFixed(1);
+        }
+
+        function isRunComplete(week, day) {
+            return runs.some(r => r.week === week && r.day === day && r.raceId === activeRaceId);
+        }
+
+        function getRunPace(week, day) {
+            const run = runs.find(r => r.week === week && r.day === day && r.raceId === activeRaceId);
+            return run?.pace || null;
+        }
+
+        function getRunFeeling(week, day) {
+            const run = runs.find(r => r.week === week && r.day === day && r.raceId === activeRaceId);
+            return run?.feeling || null;
+        }
+
+        function getAveragePace() {
+            const runsWithPace = runs.filter(r => r.pace && r.raceId === activeRaceId);
+            if (runsWithPace.length === 0) return 'N/A';
+            
+            const totalMinutes = runsWithPace.reduce((sum, run) => {
+                const [mins, secs] = run.pace.split(':').map(Number);
+                return sum + mins + (secs / 60);
+            }, 0);
+            
+            const avgMinutes = totalMinutes / runsWithPace.length;
+            const mins = Math.floor(avgMinutes);
+            const secs = Math.round((avgMinutes - mins) * 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function calculatePace(durationMinutes, distance) {
+            if (!durationMinutes || !distance) return null;
+            const paceMinutes = durationMinutes / parseFloat(distance);
+            const mins = Math.floor(paceMinutes);
+            const secs = Math.round((paceMinutes - mins) * 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function getFeelingEmoji(feeling) {
+            const feelingObj = feelings.find(f => f.value === feeling);
+            return feelingObj ? feelingObj.emoji : '';
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                btn.className = 'px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100';
+            });
+            document.getElementById(`tab-${tab}`).className = 'px-4 py-2 rounded-lg font-semibold bg-blue-600 text-white';
+            render();
+        }
+
+        // Modal functions
+        function openPaceModal(week, day, distance) {
+            currentPaceData = { week, day, distance, duration: '', feeling: '' };
+            
+            document.getElementById('modalWeekDay').textContent = `Week ${week} - ${day.toUpperCase()}`;
+            document.getElementById('modalDistance').textContent = `${distance} miles`;
+            document.getElementById('durationInput').value = '';
+            document.getElementById('calculatedPace').classList.add('hidden');
+            document.getElementById('saveRunBtn').disabled = true;
+            
+            // Render feeling buttons
+            const feelingButtons = document.getElementById('feelingButtons');
+            feelingButtons.innerHTML = feelings.map(option => `
+                <button
+                    onclick="selectFeeling('${option.value}')"
+                    id="feeling-${option.value}"
+                    class="p-3 rounded-lg border-2 flex flex-col items-center gap-1 bg-gray-50 border-gray-200 hover:border-blue-300"
+                >
+                    <span class="text-2xl">${option.emoji}</span>
+                    <span class="text-xs font-semibold">${option.label}</span>
+                </button>
+            `).join('');
+            
+            document.getElementById('paceModal').classList.remove('hidden');
+        }
+
+        function closePaceModal() {
+            document.getElementById('paceModal').classList.add('hidden');
+            currentPaceData = { week: null, day: null, distance: null, duration: '', feeling: '' };
+        }
+
+        function selectFeeling(feeling) {
+            currentPaceData.feeling = feeling;
+            
+            // Update button styles
+            feelings.forEach(f => {
+                const btn = document.getElementById(`feeling-${f.value}`);
+                if (f.value === feeling) {
+                    btn.className = 'p-3 rounded-lg border-2 flex flex-col items-center gap-1 bg-blue-100 border-blue-500';
+                } else {
+                    btn.className = 'p-3 rounded-lg border-2 flex flex-col items-center gap-1 bg-gray-50 border-gray-200 hover:border-blue-300';
+                }
+            });
+            
+            updateSaveButton();
+        }
+
+        function updateDuration(value) {
+            currentPaceData.duration = value;
+            
+            if (value && currentPaceData.distance) {
+                const pace = calculatePace(parseFloat(value), currentPaceData.distance);
+                document.getElementById('calculatedPace').textContent = `Pace: ${pace}/mi`;
+                document.getElementById('calculatedPace').classList.remove('hidden');
+            } else {
+                document.getElementById('calculatedPace').classList.add('hidden');
+            }
+            
+            updateSaveButton();
+        }
+
+        function updateSaveButton() {
+            const btn = document.getElementById('saveRunBtn');
+            btn.disabled = !currentPaceData.duration || !currentPaceData.feeling;
+        }
+
+        async function saveRun() {
+            if (!currentPaceData.duration || !currentPaceData.feeling) return;
+            
+            const pace = calculatePace(parseFloat(currentPaceData.duration), currentPaceData.distance);
+            
+            const existingRunIndex = runs.findIndex(r => r.week === currentPaceData.week && r.day === currentPaceData.day && r.raceId === activeRaceId);
+            
+            if (existingRunIndex >= 0) {
+                runs[existingRunIndex] = {
+                    ...runs[existingRunIndex],
+                    pace,
+                    duration: currentPaceData.duration,
+                    feeling: currentPaceData.feeling
+                };
+                if (window.storage) {
+                    await window.storage.set('marathon-runs', JSON.stringify(runs));
+                }
+            } else {
+                await saveRunData({
+                    week: currentPaceData.week,
+                    day: currentPaceData.day,
+                    distance: currentPaceData.distance,
+                    pace,
+                    duration: currentPaceData.duration,
+                    feeling: currentPaceData.feeling,
+                    date: new Date().toISOString()
+                });
+            }
+            
+            closePaceModal();
+        }
+
+        // Add event listener for duration input
+        document.getElementById('durationInput').addEventListener('input', (e) => {
+            updateDuration(e.target.value);
+        });
+
+        // Render functions
+        function renderDashboard() {
+            const currentWeek = getCurrentWeek();
+            const daysUntilRace = getDaysUntilRace();
+            const trainingPlan = getTrainingPlan();
+            
+            return `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                <div class="text-sm text-blue-600 font-semibold">Days to Race</div>
+                            </div>
+                            <div class="text-3xl font-bold text-blue-900">${daysUntilRace}</div>
+                        </div>
+                        
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                                </svg>
+                                <div class="text-sm text-green-600 font-semibold">Total Miles</div>
+                            </div>
+                            <div class="text-3xl font-bold text-green-900">${getTotalMiles()}</div>
+                        </div>
+                        
+                        <div class="bg-orange-50 p-4 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                <div class="text-sm text-orange-600 font-semibold">Avg Pace</div>
+                            </div>
+                            <div class="text-3xl font-bold text-orange-900">${getAveragePace()}</div>
+                        </div>
+                        
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path d="M6 2v6h.01M6 8H2v6a2 2 0 0 0 2 2h2"></path>
+                                    <rect x="10" y="8" width="12" height="12" rx="2"></rect>
+                                </svg>
+                                <div class="text-sm text-purple-600 font-semibold">Strength Sessions</div>
+                            </div>
+                            <div class="text-3xl font-bold text-purple-900">${strengthWorkouts.filter(w => w.raceId === activeRaceId).length}</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                        <h3 class="font-bold text-lg mb-3">Current Week: ${currentWeek}</h3>
+                        <div class="grid grid-cols-7 gap-2">
+                            ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
+                                const dayKey = day.toLowerCase().slice(0, 3);
+                                const workout = trainingPlan[currentWeek][dayKey];
+                                const complete = isRunComplete(currentWeek, dayKey);
+                                const pace = getRunPace(currentWeek, dayKey);
+                                const feeling = getRunFeeling(currentWeek, dayKey);
+                                
+                                return `
+                                    <div class="p-3 rounded border-2 ${complete ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
+                                        <div class="text-xs font-semibold text-gray-600 mb-1">${day}</div>
+                                        <div class="text-sm font-bold">${workout}</div>
+                                        ${pace ? `<div class="text-xs text-green-700 mt-1">${pace}/mi</div>` : ''}
+                                        ${feeling ? `<div class="text-lg mt-1">${getFeelingEmoji(feeling)}</div>` : ''}
+                                        ${workout !== 'Rest' ? `
+                                            <button
+                                                onclick="openPaceModal(${currentWeek}, '${dayKey}', '${workout.split(' ')[0]}')"
+                                                class="mt-2 text-xs text-blue-600 hover:underline"
+                                            >
+                                                ${complete ? 'Edit' : 'Log'}
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                        <h3 class="font-bold text-lg mb-3">Recent Activity</h3>
+                        ${runs.filter(r => r.raceId === activeRaceId).slice(-5).reverse().map(run => `
+                            <div class="flex justify-between items-center py-2 border-b">
+                                <div>
+                                    <span class="text-sm">Week ${run.week} - ${run.day.toUpperCase()}</span>
+                                    <span class="font-semibold ml-2">${run.distance} mi</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    ${run.feeling ? `<span class="text-lg" title="${run.feeling}">${getFeelingEmoji(run.feeling)}</span>` : ''}
+                                    ${run.pace ? `<span class="text-green-700">${run.pace}/mi</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${runs.filter(r => r.raceId === activeRaceId).length === 0 ? '<p class="text-gray-500 text-sm">No runs logged yet</p>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTrainingPlan() {
+            const months = getMonthsForRace();
+            if (months.length === 0) return '<p>No active race selected</p>';
+            
+            const currentMonth = months[selectedMonth] || months[0];
+            const trainingPlan = getTrainingPlan();
+            
+            return `
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <button
+                                onclick="changeMonth(-1)"
+                                ${selectedMonth === 0 ? 'disabled' : ''}
+                                class="px-3 py-2 bg-gray-200 rounded disabled:opacity-50"
+                            >
+                                ←
+                            </button>
+                            <h2 class="text-2xl font-bold">${currentMonth.name}</h2>
+                            <button
+                                onclick="changeMonth(1)"
+                                ${selectedMonth === months.length - 1 ? 'disabled' : ''}
+                                class="px-3 py-2 bg-gray-200 rounded disabled:opacity-50"
+                            >
+                                →
+                            </button>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            ${editMode ? `
+                                <button
+                                    onclick="saveScheduleChanges()"
+                                    class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                                >
+                                    Save Changes
+                                </button>
+                                <button
+                                    onclick="cancelEditMode()"
+                                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                                >
+                                    Cancel
+                                </button>
+                            ` : `
+                                <button
+                                    onclick="toggleEditMode()"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                                >
+                                    ✏️ Customize Days
+                                </button>
+                                <button
+                                    onclick="resetToDefault()"
+                                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                                >
+                                    Reset to Default
+                                </button>
+                            `}
+                        </div>
+                    </div>
+
+                    ${editMode ? `
+                        <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                            <h3 class="font-bold mb-2">✏️ Edit Mode Active</h3>
+                            <p class="text-sm text-gray-700">
+                                Click on any workout to move it to a different day. Click on a day to swap workouts between days.
+                            </p>
+                        </div>
+                    ` : ''}
+
+                    <div class="space-y-6">
+                        ${currentMonth.weeks.map(week => {
+                            const weekMiles = getWeekMiles(week);
+                            const weekRuns = runs.filter(r => r.week === week && r.raceId === activeRaceId);
+                            const completedDays = weekRuns.length;
+                            const totalDays = Object.values(trainingPlan[week]).filter(d => d !== 'Rest').length;
+
+                            return `
+                                <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <h3 class="font-bold text-lg">Week ${week}</h3>
+                                        <div class="flex gap-4 text-sm">
+                                            <span class="text-gray-600">Progress: ${completedDays}/${totalDays}</span>
+                                            <span class="font-semibold text-green-700">${weekMiles} miles</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-7 gap-2">
+                                        ${['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => {
+                                            const workout = trainingPlan[week][day];
+                                            const complete = isRunComplete(week, day);
+                                            const pace = getRunPace(week, day);
+                                            const distance = workout.split(' ')[0];
+
+                                            return `
+                                                <div 
+                                                    class="p-3 rounded-lg border-2 ${complete ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'} ${editMode ? 'cursor-pointer hover:border-blue-500' : ''}"
+                                                    ${editMode ? `onclick="selectDayToSwap(${week}, '${day}')"` : ''}
+                                                >
+                                                    <div class="text-xs font-semibold text-gray-600 mb-1 capitalize">${day}</div>
+                                                    ${editMode ? `
+                                                        <select 
+                                                            onchange="changeWorkout(${week}, '${day}', this.value)"
+                                                            class="w-full text-sm font-bold mb-1 border rounded px-1 py-1"
+                                                        >
+                                                            <option value="${workout}" selected>${workout}</option>
+                                                            <option value="Rest">Rest</option>
+                                                            <option value="3 mi">3 mi</option>
+                                                            <option value="4 mi">4 mi</option>
+                                                            <option value="5 mi">5 mi</option>
+                                                            <option value="6 mi">6 mi</option>
+                                                            <option value="7 mi">7 mi</option>
+                                                            <option value="8 mi">8 mi</option>
+                                                            <option value="9 mi">9 mi</option>
+                                                            <option value="10 mi">10 mi</option>
+                                                            <option value="11 mi">11 mi</option>
+                                                            <option value="12 mi">12 mi</option>
+                                                            <option value="13 mi">13 mi</option>
+                                                            <option value="14 mi">14 mi</option>
+                                                            <option value="15 mi">15 mi</option>
+                                                            <option value="16 mi">16 mi</option>
+                                                            <option value="18 mi">18 mi</option>
+                                                            <option value="20 mi">20 mi</option>
+                                                        </select>
+                                                    ` : `
+                                                        <div class="text-lg font-bold mb-1">${workout}</div>
+                                                    `}
+                                                    ${pace ? `<div class="text-xs text-green-700 mb-2">${pace}/mi</div>` : ''}
+                                                    ${!editMode && workout !== 'Rest' && workout !== 'RACE!' ? `
+                                                        <button
+                                                            onclick="openPaceModal(${week}, '${day}', '${distance}')"
+                                                            class="w-full py-1 px-2 rounded text-xs font-semibold ${complete ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}"
+                                                        >
+                                                            ${complete ? 'Edit' : 'Log'}
+                                                        </button>
+                                                    ` : ''}
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderStrengthTraining() {
+            return `
+                <div class="space-y-6">
+                    <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                        <h3 class="font-bold mb-2">💡 Training Tip</h3>
+                        <p class="text-sm text-gray-700">
+                            Do strength training 2-3x per week on easy run days or rest days. Focus on legs, core, and maintaining upper body strength.
+                        </p>
+                    </div>
+
+                    ${Object.entries(strengthExercises).map(([category, exercises]) => `
+                        <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                            <h3 class="font-bold text-lg mb-3 capitalize">${category} Exercises</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                ${exercises.map(exercise => `
+                                    <button
+                                        onclick="toggleExercise('${exercise}')"
+                                        id="exercise-${exercise.replace(/\s+/g, '-')}"
+                                        class="p-3 rounded border-2 text-left ${selectedExercises.includes(exercise) ? 'bg-purple-100 border-purple-500' : 'bg-gray-50 border-gray-200 hover:border-purple-300'}"
+                                    >
+                                        ${exercise}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+
+                    <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                        <h3 class="font-bold text-lg mb-3">Custom Exercise</h3>
+                        <div class="flex gap-2">
+                            <input
+                                type="text"
+                                id="customExerciseInput"
+                                placeholder="Add custom exercise..."
+                                class="flex-1 border-2 border-gray-300 rounded px-3 py-2"
+                            />
+                            <button
+                                onclick="addCustomExercise()"
+                                class="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700"
+                            >
+                                Add
+                            </button>
+                        </div>
+                    </div>
+
+                    ${selectedExercises.length > 0 ? `
+                        <div class="bg-white border-2 border-purple-200 rounded-lg p-4">
+                            <h3 class="font-bold text-lg mb-3">Today's Workout (${selectedExercises.length})</h3>
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                ${selectedExercises.map(ex => `
+                                    <span class="bg-purple-100 px-3 py-1 rounded text-sm">${ex}</span>
+                                `).join('')}
+                            </div>
+                            <button
+                                onclick="logStrengthWorkout()"
+                                class="w-full bg-purple-600 text-white py-3 rounded-lg font-bold hover:bg-purple-700"
+                            >
+                                Log Workout
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <div class="bg-white border-2 border-gray-200 rounded-lg p-4">
+                        <h3 class="font-bold text-lg mb-3">Recent Strength Workouts</h3>
+                        ${strengthWorkouts.filter(w => w.raceId === activeRaceId).slice(-5).reverse().map(workout => `
+                            <div class="py-2 border-b">
+                                <div class="text-sm text-gray-600">Week ${workout.week}</div>
+                                <div class="text-sm">${workout.exercises.join(', ')}</div>
+                            </div>
+                        `).join('')}
+                        ${strengthWorkouts.filter(w => w.raceId === activeRaceId).length === 0 ? '<p class="text-gray-500 text-sm">No strength workouts logged yet</p>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function render() {
+            const content = document.getElementById('content');
+            
+            // Update title
+            const race = getActiveRace();
+            if (race) {
+                const raceDate = new Date(race.date);
+                const template = trainingTemplates[race.template];
+                document.getElementById('appTitle').textContent = race.name;
+                document.getElementById('appSubtitle').textContent = `${template.name} • Race Day: ${raceDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+            }
+            
+            if (activeTab === 'dashboard') {
+                content.innerHTML = renderDashboard();
+            } else if (activeTab === 'plan') {
+                content.innerHTML = renderTrainingPlan();
+            } else if (activeTab === 'strength') {
+                content.innerHTML = renderStrengthTraining();
+            } else if (activeTab === 'races') {
+                content.innerHTML = renderRaces();
+            }
+        }
+
+        function changeMonth(delta) {
+            const months = getMonthsForRace();
+            selectedMonth = Math.max(0, Math.min(months.length - 1, selectedMonth + delta));
+            render();
+        }
+
+        function toggleExercise(exercise) {
+            const index = selectedExercises.indexOf(exercise);
+            if (index >= 0) {
+                selectedExercises.splice(index, 1);
+            } else {
+                selectedExercises.push(exercise);
+            }
+            render();
+        }
+
+        function addCustomExercise() {
+            const input = document.getElementById('customExerciseInput');
+            const value = input.value.trim();
+            if (value) {
+                selectedExercises.push(value);
+                input.value = '';
+                render();
+            }
+        }
+
+        async function logStrengthWorkout() {
+            if (selectedExercises.length === 0) return;
+            
+            await saveStrengthData({
+                exercises: [...selectedExercises],
+                date: new Date().toISOString(),
+                week: getCurrentWeek()
+            });
+            
+            selectedExercises = [];
+            render();
+        }
+
+        // Race management functions
+        function renderRaces() {
+            return `
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">My Races</h2>
+                        <button
+                            onclick="openRaceModal()"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                        >
+                            + Add Race
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${races.map(race => {
+                            const raceDate = new Date(race.date);
+                            const startDate = new Date(race.startDate);
+                            const template = trainingTemplates[race.template];
+                            const isActive = race.id === activeRaceId;
+                            const raceRuns = runs.filter(r => r.raceId === race.id);
+                            
+                            return `
+                                <div class="bg-white border-2 ${isActive ? 'border-blue-500' : 'border-gray-200'} rounded-lg p-4">
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <h3 class="font-bold text-lg">${race.name}</h3>
+                                                ${isActive ? '<span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded font-semibold">Active</span>' : ''}
+                                            </div>
+                                            <div class="text-sm text-gray-600 space-y-1">
+                                                <div>📅 Race Date: ${raceDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                                                <div>🏃 Training: ${template.name}</div>
+                                                <div>📊 ${raceRuns.length} runs logged</div>
+                                                <div>🗓️ Start: ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            ${!isActive ? `
+                                                <button
+                                                    onclick="setActiveRace(${race.id})"
+                                                    class="px-3 py-1 bg-blue-50 text-blue-700 rounded font-semibold hover:bg-blue-100 text-sm"
+                                                >
+                                                    Set Active
+                                                </button>
+                                            ` : ''}
+                                            <button
+                                                onclick="editRace(${race.id})"
+                                                class="px-3 py-1 bg-gray-100 text-gray-700 rounded font-semibold hover:bg-gray-200 text-sm"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onclick="deleteRace(${race.id})"
+                                                class="px-3 py-1 bg-red-50 text-red-700 rounded font-semibold hover:bg-red-100 text-sm"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                        
+                        ${races.length === 0 ? `
+                            <div class="bg-gray-50 border-2 border-gray-200 rounded-lg p-8 text-center">
+                                <p class="text-gray-600 mb-4">No races yet. Add your first race to start training!</p>
+                                <button
+                                    onclick="openRaceModal()"
+                                    class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                                >
+                                    + Add Your First Race
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function openRaceModal(raceId = null) {
+            editingRaceId = raceId;
+            
+            if (raceId) {
+                const race = races.find(r => r.id === raceId);
+                document.getElementById('raceModalTitle').textContent = 'Edit Race';
+                document.getElementById('raceNameInput').value = race.name;
+                document.getElementById('raceDateInput').value = race.date;
+                document.getElementById('raceTemplateInput').value = race.template;
+                document.getElementById('raceStartDateInput').value = race.startDate;
+            } else {
+                document.getElementById('raceModalTitle').textContent = 'Add New Race';
+                document.getElementById('raceNameInput').value = '';
+                document.getElementById('raceDateInput').value = '';
+                document.getElementById('raceTemplateInput').value = 'half-novice-1';
+                document.getElementById('raceStartDateInput').value = '';
+            }
+            
+            document.getElementById('raceModal').classList.remove('hidden');
+        }
+
+        function closeRaceModal() {
+            document.getElementById('raceModal').classList.add('hidden');
+            editingRaceId = null;
+        }
+
+        async function saveRaceModal() {
+            const name = document.getElementById('raceNameInput').value.trim();
+            const date = document.getElementById('raceDateInput').value;
+            const template = document.getElementById('raceTemplateInput').value;
+            const startDate = document.getElementById('raceStartDateInput').value;
+            
+            if (!name || !date || !startDate) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            if (editingRaceId) {
+                // Edit existing race
+                const raceIndex = races.findIndex(r => r.id === editingRaceId);
+                races[raceIndex] = { ...races[raceIndex], name, date, template, startDate };
+            } else {
+                // Add new race
+                const newRace = {
+                    id: Date.now(),
+                    name,
+                    date,
+                    startDate,
+                    template,
+                    active: races.length === 0
+                };
+                races.push(newRace);
+                
+                if (races.length === 1) {
+                    activeRaceId = newRace.id;
+                }
+            }
+            
+            await saveRaces();
+            closeRaceModal();
+        }
+
+        async function setActiveRace(raceId) {
+            races.forEach(r => r.active = r.id === raceId);
+            activeRaceId = raceId;
+            selectedMonth = 0;
+            await saveRaces();
+            switchTab('dashboard');
+        }
+
+        function editRace(raceId) {
+            openRaceModal(raceId);
+        }
+
+        async function deleteRace(raceId) {
+            if (!confirm('Are you sure you want to delete this race? This will also delete all associated runs.')) {
+                return;
+            }
+            
+            races = races.filter(r => r.id !== raceId);
+            runs = runs.filter(r => r.raceId !== raceId);
+            strengthWorkouts = strengthWorkouts.filter(w => w.raceId !== raceId);
+            
+            if (activeRaceId === raceId && races.length > 0) {
+                activeRaceId = races[0].id;
+                races[0].active = true;
+            } else if (races.length === 0) {
+                activeRaceId = null;
+            }
+            
+            if (window.storage) {
+                await saveRaces();
+                await window.storage.set('marathon-runs', JSON.stringify(runs));
+                await window.storage.set('marathon-strength', JSON.stringify(strengthWorkouts));
+            } else {
+                render();
+            }
+        }
+
+        // Auto-calculate start date when race date or template changes
+        document.getElementById('raceDateInput')?.addEventListener('change', updateStartDate);
+        document.getElementById('raceTemplateInput')?.addEventListener('change', updateStartDate);
+
+        function updateStartDate() {
+            const raceDate = document.getElementById('raceDateInput')?.value;
+            const template = document.getElementById('raceTemplateInput')?.value;
+            
+            if (raceDate && template) {
+                const race = new Date(raceDate);
+                const weeks = trainingTemplates[template].weeks;
+                const start = new Date(race);
+                start.setDate(start.getDate() - (weeks * 7));
+                
+                const startDateInput = document.getElementById('raceStartDateInput');
+                if (startDateInput) {
+                    startDateInput.value = start.toISOString().split('T')[0];
+                }
+            }
+        }
+
+        // Schedule editing functions
+        let tempSchedule = null;
+
+        function toggleEditMode() {
+            editMode = true;
+            // Create a copy of the current schedule to edit
+            const currentPlan = getTrainingPlan();
+            tempSchedule = JSON.parse(JSON.stringify(currentPlan));
+            render();
+        }
+
+        function cancelEditMode() {
+            editMode = false;
+            tempSchedule = null;
+            render();
+        }
+
+        function changeWorkout(week, day, newWorkout) {
+            if (!tempSchedule) {
+                tempSchedule = JSON.parse(JSON.stringify(getTrainingPlan()));
+            }
+            tempSchedule[week][day] = newWorkout;
+        }
+
+        async function saveScheduleChanges() {
+            if (tempSchedule) {
+                await saveCustomSchedule(tempSchedule);
+                tempSchedule = null;
+            }
+            editMode = false;
+            render();
+        }
+
+        async function resetToDefault() {
+            if (!confirm('Reset to the default training plan? This will remove all customizations.')) {
+                return;
+            }
+            
+            delete customSchedules[activeRaceId];
+            if (window.storage) {
+                await window.storage.set('marathon-schedules', JSON.stringify(customSchedules));
+            }
+            render();
+        }
+
+        let swapSelection = null;
+
+        function selectDayToSwap(week, day) {
+            if (!swapSelection) {
+                // First selection
+                swapSelection = { week, day };
+                alert(`Selected ${day.toUpperCase()} of Week ${week}. Click another day to swap workouts.`);
+            } else {
+                // Second selection - perform swap
+                if (!tempSchedule) {
+                    tempSchedule = JSON.parse(JSON.stringify(getTrainingPlan()));
+                }
+                
+                const temp = tempSchedule[swapSelection.week][swapSelection.day];
+                tempSchedule[swapSelection.week][swapSelection.day] = tempSchedule[week][day];
+                tempSchedule[week][day] = temp;
+                
+                swapSelection = null;
+                render();
+            }
+        }
+
+        // Initialize
+        loadData();
+    </script>
+</body>
+</html>
