@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBA Complete Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #9CA3AF;
+            margin: 0;
+            padding: 0;
+        }
+        .tab-button {
+            transition: all 0.3s ease;
+        }
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .gantt-container {
+            overflow-x: auto;
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+        }
+        .gantt-header {
+            display: flex;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        .gantt-row {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .gantt-label {
+            width: 200px;
+            flex-shrink: 0;
+            padding-right: 1rem;
+            font-size: 0.875rem;
+        }
+        .gantt-timeline {
+            flex: 1;
+            position: relative;
+            height: 40px;
+        }
+        .gantt-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            padding: 0 0.5rem;
+            font-size: 0.75rem;
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .gantt-bar:hover {
+            opacity: 0.8;
+        }
+        .gantt-today {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: #ef4444;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        let state = {
+            currentTool: 'home', // home, dissertation, research, degree, degree-class, research-literature
+            currentSubView: null,
+            
+            // Dissertation data
+            dissertationTopic: {
+                title: '', topic: '', researchType: 'Quantitative',
+                problemStatement: '', researchQuestions: [], theoreticalFramework: '',
+                methodology: '', significance: '', limitations: '', keywords: '',
+                committee: [], timeline: ''
+            },
+            dailyLogs: [],
+            synthesesReports: [],
+            mainArguments: { thesis: '', whyMatters: '', chapters: [] },
+            connections: [],
+            dissertationMilestones: [],
+            
+            // Research database data
+            researchProjects: [],
+            currentProjectId: null,
+            
+            // Degree tracker data
+            classes: [],
+            courseCatalog: [],
+            currentClassId: null,
+            filterStatus: 'all',
+            showAssignmentTracker: true,
+            
+            editingId: null,
+            searchTerm: '',
+            zoteroApiKey: '',
+            zoteroUserId: '',
+            showZoteroModal: false,
+            zoteroItems: [],
+            selectedZoteroItems: new Set(),
+            zoteroSearchTerm: '',
+            zoteroLoading: false
+        };
+
+        const researchTypes = ["Quantitative", "Qualitative", "Mixed Methods", "Literature Review", "Conceptual", "Meta-Analysis"];
+        const topics = ["Organizational Behavior", "Economics", "Psychology", "Sociology", "Marketing", "Finance", "Other"];
+        const phases = ["Idea", "Literature Review", "Design", "Data Collection", "Analysis", "Writing", "Under Review", "Published"];
+        
+        const phaseProgress = {
+            "Idea": 10, "Literature Review": 20, "Design": 25,
+            "Data Collection": 45, "Analysis": 50, "Writing": 75,
+            "Under Review": 90, "Published": 100
+        };
+
+        const phaseColors = {
+            "Idea": "bg-purple-100 text-purple-700",
+            "Literature Review": "bg-blue-100 text-blue-700",
+            "Design": "bg-indigo-100 text-indigo-700",
+            "Data Collection": "bg-pink-100 text-pink-700",
+            "Analysis": "bg-amber-100 text-amber-700",
+            "Writing": "bg-rose-100 text-rose-700",
+            "Under Review": "bg-fuchsia-100 text-fuchsia-700",
+            "Published": "bg-emerald-100 text-emerald-700"
+        };
+
+        const priorityColors = {
+            "High": "bg-red-100 text-red-700",
+            "Medium": "bg-yellow-100 text-yellow-700",
+            "Low": "bg-gray-100 text-gray-700"
+        };
+
+        const statusColors = {
+            "Not Started": "bg-gray-100 text-gray-700",
+            "In Progress": "bg-blue-100 text-blue-700",
+            "Submitted": "bg-green-100 text-green-700",
+            "Graded": "bg-purple-100 text-purple-700",
+            "Overdue": "bg-red-100 text-red-700",
+            "To Read": "bg-gray-100 text-gray-600",
+            "Reading": "bg-blue-100 text-blue-700",
+            "Read": "bg-green-100 text-green-700",
+            "Cited": "bg-purple-100 text-purple-700"
+        };
+
+        const classStatusColors = {
+            "Current": "bg-green-100 text-green-700",
+            "Upcoming": "bg-blue-100 text-blue-700",
+            "Completed": "bg-gray-100 text-gray-700"
+        };
+
+        const ganttColors = {
+            "Not Started": "#9ca3af",
+            "In Progress": "#60a5fa",
+            "Submitted": "#34d399",
+            "Graded": "#a78bfa",
+            "Overdue": "#ef4444"
+        };
+
+        const gradePoints = {
+            "A": 4.0, "A-": 3.7,
+            "B+": 3.3, "B": 3.0, "B-": 2.7,
+            "C+": 2.3, "C": 2.0, "C-": 1.7,
+            "D+": 1.3, "D": 1.0, "D-": 0.7,
+            "F": 0.0
+        };
+
+        function render() {
+            const app = document.getElementById('app');
+            
+            app.innerHTML = `
+                ${renderTopNav()}
+                <div class="p-6">
+                    ${renderCurrentView()}
+                </div>
+            `;
+        }
+
+        function renderTopNav() {
+            return `
+                <div class="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg">
+                    <div class="max-w-7xl mx-auto px-6 py-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h1 class="text-3xl font-light">DBA Complete Tracker</h1>
+                            <button onclick="exportAllData()" class="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 text-sm">
+                                📥 Export All
+                            </button>
+                        </div>
+                        <div class="flex gap-2 overflow-x-auto">
+                            <button onclick="switchTool('home')" class="tab-button px-6 py-2 rounded-lg whitespace-nowrap ${state.currentTool === 'home' ? 'active' : 'bg-white/10 hover:bg-white/20'}">
+                                🏠 Home
+                            </button>
+                            <button onclick="switchTool('dissertation')" class="tab-button px-6 py-2 rounded-lg whitespace-nowrap ${state.currentTool === 'dissertation' ? 'active' : 'bg-white/10 hover:bg-white/20'}">
+                                🎯 Dissertation
+                            </button>
+                            <button onclick="switchTool('research')" class="tab-button px-6 py-2 rounded-lg whitespace-nowrap ${state.currentTool === 'research' ? 'active' : 'bg-white/10 hover:bg-white/20'}">
+                                🔬 Research
+                            </button>
+                            <button onclick="switchTool('degree')" class="tab-button px-6 py-2 rounded-lg whitespace-nowrap ${state.currentTool === 'degree' ? 'active' : 'bg-white/10 hover:bg-white/20'}">
+                                🎓 Degree
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCurrentView() {
+            switch(state.currentTool) {
+                case 'home': return renderHome();
+                case 'dissertation': return renderDissertation();
+                case 'research': return renderResearch();
+                case 'degree': return renderDegree();
+                default: return renderHome();
+            }
+        }
+
+        function switchTool(tool) {
+            state.currentTool = tool;
+            state.currentSubView = null;
+            state.editingId = null;
+            render();
+        }
+
+        // HOME DASHBOARD
+        function renderHome() {
+            const dissEntries = state.dailyLogs.length + state.synthesesReports.length + state.dissertationMilestones.length;
+            const resProjects = state.researchProjects.length;
+            const activeClasses = state.classes.filter(c => c.status === 'Current').length;
+            
+            // Calculate assignments due this week
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const sevenDaysFromNow = new Date(today);
+            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+            
+            const allAssignments = state.classes.flatMap(c => 
+                (c.assignments || []).map(a => ({...a, classId: c.id, classCode: c.code, className: c.title}))
+            );
+            
+            const dueSoon = allAssignments.filter(a => {
+                if (a.status === 'Submitted' || a.status === 'Graded') return false;
+                const dueDate = new Date(a.dueDate);
+                return dueDate >= today && dueDate <= sevenDaysFromNow;
+            });
+            
+            const overdue = allAssignments.filter(a => {
+                if (a.status === 'Submitted' || a.status === 'Graded') return false;
+                const dueDate = new Date(a.dueDate);
+                return dueDate < today;
+            });
+            
+            const upcoming = allAssignments.filter(a => {
+                if (a.status === 'Submitted' || a.status === 'Graded') return false;
+                const dueDate = new Date(a.dueDate);
+                return dueDate > sevenDaysFromNow;
+            });
+
+            return `
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl shadow-lg p-8 mb-6">
+                        <h2 class="text-3xl font-light mb-2 text-gray-800">Welcome to Your DBA Hub</h2>
+                        <p class="text-gray-700">Everything you need from coursework to dissertation in one place</p>
+                    </div>
+
+                    <!-- Quick Stats - Assignments Due This Week -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-gradient-to-br from-red-300 to-rose-300 p-6 rounded-2xl shadow-sm text-gray-800 cursor-pointer hover:shadow-lg transition-all"
+                             onclick="switchTool('degree')">
+                            <div class="text-3xl font-light">${overdue.length}</div>
+                            <div class="text-sm font-light">Overdue</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-orange-300 to-amber-300 p-6 rounded-2xl shadow-sm text-gray-800 cursor-pointer hover:shadow-lg transition-all"
+                             onclick="switchTool('degree')">
+                            <div class="text-3xl font-light">${dueSoon.length}</div>
+                            <div class="text-sm font-light">Due This Week</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-blue-300 to-cyan-300 p-6 rounded-2xl shadow-sm text-gray-800 cursor-pointer hover:shadow-lg transition-all"
+                             onclick="switchTool('degree')">
+                            <div class="text-3xl font-light">${upcoming.length}</div>
+                            <div class="text-sm font-light">Upcoming</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-green-300 to-emerald-300 p-6 rounded-2xl shadow-sm text-gray-800 cursor-pointer hover:shadow-lg transition-all"
+                             onclick="switchTool('degree')">
+                            <div class="text-3xl font-light">${activeClasses}</div>
+                            <div class="text-sm font-light">Active Classes</div>
+                        </div>
+                    </div>
+
+                    <!-- Assignments Due This Week -->
+                    ${dueSoon.length > 0 || overdue.length > 0 ? `
+                        <div class="mb-8">
+                            <h3 class="text-2xl font-light mb-4 text-gray-800">📅 Action Required</h3>
+                            <div class="space-y-3">
+                                ${overdue.map(a => `
+                                    <div class="bg-gradient-to-br from-red-50 to-rose-50 border-l-4 border-red-500 p-4 rounded-lg cursor-pointer hover:shadow-md transition-all"
+                                         onclick="viewClassFromHome(${a.classId})">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">OVERDUE</span>
+                                                    <span class="text-sm text-gray-600">${a.classCode}</span>
+                                                </div>
+                                                <h4 class="font-semibold text-gray-900">${a.title}</h4>
+                                                <p class="text-sm text-gray-600 mt-1">Was due ${formatDate(a.dueDate)}</p>
+                                            </div>
+                                            <div class="text-sm text-gray-500">${a.points || 0} pts</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                                ${dueSoon.map(a => `
+                                    <div class="bg-gradient-to-br from-orange-50 to-amber-50 border-l-4 border-orange-500 p-4 rounded-lg cursor-pointer hover:shadow-md transition-all"
+                                         onclick="viewClassFromHome(${a.classId})">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold">DUE SOON</span>
+                                                    <span class="text-sm text-gray-600">${a.classCode}</span>
+                                                </div>
+                                                <h4 class="font-semibold text-gray-900">${a.title}</h4>
+                                                <p class="text-sm text-gray-600 mt-1">Due ${formatDate(a.dueDate)}</p>
+                                            </div>
+                                            <div class="text-sm text-gray-500">${a.points || 0} pts</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Tool Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-gradient-to-br from-rose-400 to-pink-500 p-8 rounded-2xl shadow-lg text-white cursor-pointer hover:shadow-xl transition-all"
+                             onclick="switchTool('dissertation')">
+                            <div class="text-5xl mb-4">🎯</div>
+                            <h3 class="text-2xl font-light mb-2">Dissertation Tracker</h3>
+                            <p class="text-white/90 text-sm">Topic, daily logs, synthesis, arguments, connections, progress</p>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-purple-400 to-indigo-500 p-8 rounded-2xl shadow-lg text-white cursor-pointer hover:shadow-xl transition-all"
+                             onclick="switchTool('research')">
+                            <div class="text-5xl mb-4">🔬</div>
+                            <h3 class="text-2xl font-light mb-2">Research Database</h3>
+                            <p class="text-white/90 text-sm">Multiple projects, literature review, Zotero integration</p>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-blue-400 to-cyan-500 p-8 rounded-2xl shadow-lg text-white cursor-pointer hover:shadow-xl transition-all"
+                             onclick="switchTool('degree')">
+                            <div class="text-5xl mb-4">🎓</div>
+                            <h3 class="text-2xl font-light mb-2">Degree Tracker</h3>
+                            <p class="text-white/90 text-sm">Courses, assignments, deadlines, GPA, catalog</p>
+                        </div>
+                    </div>
+
+                    <!-- Tips -->
+                    <div class="bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl shadow-lg p-8">
+                        <h3 class="text-xl font-light mb-4 text-gray-800">💡 Getting Started</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                            <div>
+                                <div class="text-2xl mb-2">📝</div>
+                                <strong class="text-gray-800">Log Daily Progress</strong>
+                                <p class="text-gray-700 mt-2">Track what you read, write, and any obstacles. Momentum builds.</p>
+                            </div>
+                            <div>
+                                <div class="text-2xl mb-2">🔗</div>
+                                <strong class="text-gray-800">Synthesize Literature</strong>
+                                <p class="text-gray-700 mt-2">Make papers talk to each other. Find themes, gaps, debates.</p>
+                            </div>
+                            <div class="cursor-pointer hover:bg-white/50 p-3 rounded-lg -m-3 transition-all" onclick="switchTool('degree')">
+                                <div class="text-2xl mb-2">📚</div>
+                                <strong class="text-blue-600 hover:text-blue-700">Update Homework Tracker</strong>
+                                <p class="text-gray-700 mt-2">Track assignments and deadlines for each class.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function viewClassFromHome(classId) {
+            state.currentClassId = classId;
+            state.currentSubView = 'class';
+            switchTool('degree');
+        }
+
+        // DISSERTATION SECTION
+        function renderDissertation() {
+            if (!state.currentSubView) {
+                return renderDissertationDashboard();
+            }
+
+            switch(state.currentSubView) {
+                case 'topic': return renderDissertationTopic();
+                case 'daily-log': return renderDailyLog();
+                case 'synthesis': return renderLiteratureSynthesis();
+                case 'arguments': return renderMainArguments();
+                case 'connections': return renderConnections();
+                case 'progress': return renderProgressTracker();
+                default: return renderDissertationDashboard();
+            }
+        }
+
+        function renderDissertationDashboard() {
+            const recentLogs = state.dailyLogs.slice(0, 7).length;
+            const totalSyntheses = state.synthesesReports.length;
+            const chaptersPlanned = state.mainArguments.chapters.length;
+            const milestonesComplete = state.dissertationMilestones.filter(m => m.status === 'Completed').length;
+            const totalMilestones = state.dissertationMilestones.length;
+
+            return `
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h2 class="text-3xl font-light mb-2">Dissertation Tracker</h2>
+                        <p class="text-gray-600">Your complete doctoral research workflow</p>
+                        ${state.dissertationTopic.title ? `<p class="text-sm text-gray-500 mt-2">📚 ${state.dissertationTopic.title}</p>` : ''}
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-2xl ${state.dissertationTopic.title ? 'text-green-600' : 'text-gray-400'}">${state.dissertationTopic.title ? '✓' : '○'}</div>
+                            <div class="text-sm text-gray-600">Topic</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-2xl text-gray-800">${recentLogs}/7</div>
+                            <div class="text-sm text-gray-600">Days Logged</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-2xl text-gray-800">${totalSyntheses}</div>
+                            <div class="text-sm text-gray-600">Syntheses</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-2xl text-gray-800">${chaptersPlanned}</div>
+                            <div class="text-sm text-gray-600">Chapters</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-2xl text-gray-800">${milestonesComplete}/${totalMilestones}</div>
+                            <div class="text-sm text-gray-600">Milestones</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${renderDissModuleCard('topic', '🎯', 'Dissertation Topic', 'Define your research focus', state.dissertationTopic.title ? 'Defined' : 'Setup')}
+                        ${renderDissModuleCard('daily-log', '📝', 'Daily Log', 'Accountability mirror', `${state.dailyLogs.length} entries`)}
+                        ${renderDissModuleCard('synthesis', '🔗', 'Literature Synthesis', 'Papers talking together', `${state.synthesesReports.length} reports`)}
+                        ${renderDissModuleCard('arguments', '💡', 'Main Arguments', 'Thesis core', `${state.mainArguments.chapters.length} chapters`)}
+                        ${renderDissModuleCard('connections', '🗺️', 'Connections', 'Theory meets data', `${state.connections.length} maps`)}
+                        ${renderDissModuleCard('progress', '📊', 'Progress Tracker', 'Stay honest', `${state.dissertationMilestones.length} items`)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDissModuleCard(view, icon, title, desc, count) {
+            return `
+                <div class="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                     onclick="state.currentSubView = '${view}'; render();">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="text-4xl">${icon}</div>
+                        <div class="text-xs bg-gray-100 px-2 py-1 rounded">${count}</div>
+                    </div>
+                    <h3 class="text-lg font-semibold mb-2">${title}</h3>
+                    <p class="text-sm text-gray-600">${desc}</p>
+                </div>
+            `;
+        }
+
+        function renderDissertationTopic() {
+            const topic = state.dissertationTopic;
+
+            return `
+                <div class="max-w-5xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-light mb-2">🎯 Dissertation Topic</h2>
+                                <p class="text-gray-600">Define your research focus</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 space-y-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Dissertation Title</label>
+                            <input 
+                                class="w-full px-4 py-3 border rounded-xl"
+                                placeholder="Working title..."
+                                value="${topic.title}"
+                                onchange="state.dissertationTopic.title = this.value; saveState();"
+                            />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Topic/Field</label>
+                                <input 
+                                    class="w-full px-4 py-3 border rounded-xl"
+                                    placeholder="e.g., Organizational Behavior"
+                                    value="${topic.topic}"
+                                    onchange="state.dissertationTopic.topic = this.value; saveState();"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Research Type</label>
+                                <select 
+                                    class="w-full px-4 py-3 border rounded-xl"
+                                    onchange="state.dissertationTopic.researchType = this.value; saveState();"
+                                >
+                                    ${researchTypes.map(t => `<option value="${t}" ${topic.researchType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Problem Statement</label>
+                            <textarea 
+                                class="w-full px-4 py-3 border rounded-xl"
+                                rows="4"
+                                placeholder="What problem are you addressing?"
+                                onchange="state.dissertationTopic.problemStatement = this.value; saveState();"
+                            >${topic.problemStatement}</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Research Questions (one per line)</label>
+                            <textarea 
+                                class="w-full px-4 py-3 border rounded-xl"
+                                rows="4"
+                                placeholder="List your research questions..."
+                                onchange="state.dissertationTopic.researchQuestions = this.value.split('\\n').filter(l => l.trim()); saveState();"
+                            >${topic.researchQuestions.join('\n')}</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Theoretical Framework</label>
+                            <textarea 
+                                class="w-full px-4 py-3 border rounded-xl"
+                                rows="4"
+                                placeholder="What theories guide your research?"
+                                onchange="state.dissertationTopic.theoreticalFramework = this.value; saveState();"
+                            >${topic.theoreticalFramework}</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Methodology</label>
+                            <textarea 
+                                class="w-full px-4 py-3 border rounded-xl"
+                                rows="4"
+                                placeholder="Research design, data collection, analysis..."
+                                onchange="state.dissertationTopic.methodology = this.value; saveState();"
+                            >${topic.methodology}</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Significance & Contribution</label>
+                            <textarea 
+                                class="w-full px-4 py-3 border rounded-xl"
+                                rows="3"
+                                placeholder="Why does this matter?"
+                                onchange="state.dissertationTopic.significance = this.value; saveState();"
+                            >${topic.significance}</textarea>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDailyLog() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayLog = state.dailyLogs.find(log => log.date === today);
+
+            return `
+                <div class="max-w-5xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-light mb-2">📝 Daily Log</h2>
+                                <p class="text-gray-600">Your accountability mirror</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h3 class="text-xl font-semibold mb-4">Today: ${formatDate(today)}</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">What did you read today?</label>
+                                <textarea 
+                                    class="w-full px-4 py-3 border rounded-xl"
+                                    rows="3"
+                                    placeholder="Papers, chapters, articles..."
+                                    onchange="updateTodayLog('read', this.value)"
+                                >${todayLog?.read || ''}</textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">What did you write today?</label>
+                                <textarea 
+                                    class="w-full px-4 py-3 border rounded-xl"
+                                    rows="3"
+                                    placeholder="Drafts, notes, revisions..."
+                                    onchange="updateTodayLog('write', this.value)"
+                                >${todayLog?.write || ''}</textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">What didn't happen and why?</label>
+                                <textarea 
+                                    class="w-full px-4 py-3 border rounded-xl"
+                                    rows="3"
+                                    placeholder="Honest reflection..."
+                                    onchange="updateTodayLog('obstacles', this.value)"
+                                >${todayLog?.obstacles || ''}</textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">Productivity (1-10)</label>
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    max="10"
+                                    class="w-full px-4 py-3 border rounded-xl"
+                                    value="${todayLog?.productivity || ''}"
+                                    onchange="updateTodayLog('productivity', parseInt(this.value))"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <h3 class="text-xl font-semibold mb-4">Previous Entries</h3>
+                        ${state.dailyLogs.filter(log => log.date !== today).length === 0 ? `
+                            <p class="text-gray-500 text-center py-8">No previous entries</p>
+                        ` : `
+                            <div class="space-y-4">
+                                ${state.dailyLogs.filter(log => log.date !== today).slice(0, 10).map(log => `
+                                    <div class="border-l-4 border-pink-300 pl-4 py-2">
+                                        <div class="flex justify-between mb-2">
+                                            <strong>${formatDate(log.date)}</strong>
+                                            <span class="text-xs px-2 py-1 rounded ${log.productivity >= 7 ? 'bg-green-100 text-green-700' : log.productivity >= 4 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}">
+                                                ${log.productivity}/10
+                                            </span>
+                                        </div>
+                                        ${log.read ? `<p class="text-sm text-gray-600"><strong>Read:</strong> ${log.read}</p>` : ''}
+                                        ${log.write ? `<p class="text-sm text-gray-600"><strong>Wrote:</strong> ${log.write}</p>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateTodayLog(field, value) {
+            const today = new Date().toISOString().split('T')[0];
+            let log = state.dailyLogs.find(l => l.date === today);
+            
+            if (!log) {
+                log = { id: Date.now(), date: today };
+                state.dailyLogs.unshift(log);
+            }
+            
+            log[field] = value;
+            saveState();
+        }
+
+        function renderLiteratureSynthesis() {
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-light mb-2">🔗 Literature Synthesis</h2>
+                                <p class="text-gray-600">Where papers talk to each other</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addSynthesis()" class="px-5 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">
+                            + New Synthesis Report
+                        </button>
+                    </div>
+
+                    ${state.synthesesReports.length === 0 ? `
+                        <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+                            <p class="text-gray-500">No synthesis reports yet</p>
+                        </div>
+                    ` : `
+                        <div class="space-y-6">
+                            ${state.synthesesReports.map(syn => renderSynthesisCard(syn)).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderSynthesisCard(syn) {
+            const isEditing = state.editingId === syn.id;
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    ${isEditing ? `
+                        <div class="space-y-4">
+                            <input class="w-full px-4 py-3 border rounded-xl text-xl" placeholder="Theme..." value="${syn.theme}" onchange="updateSynthesis(${syn.id}, 'theme', this.value)" />
+                            <textarea class="w-full px-4 py-3 border rounded-xl" rows="3" placeholder="Key themes..." onchange="updateSynthesis(${syn.id}, 'themes', this.value)">${syn.themes || ''}</textarea>
+                            <textarea class="w-full px-4 py-3 border rounded-xl" rows="3" placeholder="Debates..." onchange="updateSynthesis(${syn.id}, 'debates', this.value)">${syn.debates || ''}</textarea>
+                            <textarea class="w-full px-4 py-3 border rounded-xl" rows="3" placeholder="Gaps..." onchange="updateSynthesis(${syn.id}, 'gaps', this.value)">${syn.gaps || ''}</textarea>
+                            <input class="w-full px-4 py-3 border rounded-xl" placeholder="Papers..." value="${syn.papers || ''}" onchange="updateSynthesis(${syn.id}, 'papers', this.value)" />
+                            <div class="flex gap-3">
+                                <button onclick="saveEdit()" class="flex-1 px-4 py-2 bg-green-100 text-green-700 rounded-xl">Save</button>
+                                <button onclick="deleteSynthesis(${syn.id})" class="px-4 py-2 bg-red-100 text-red-700 rounded-xl">Delete</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-2xl font-light">${syn.theme}</h3>
+                            <button onclick="editSynthesis(${syn.id})" class="text-purple-600 hover:text-purple-700">✏️</button>
+                        </div>
+                        ${syn.themes ? `<div class="mb-3"><strong class="text-sm">Themes:</strong> <p class="text-gray-600">${syn.themes}</p></div>` : ''}
+                        ${syn.debates ? `<div class="mb-3"><strong class="text-sm">Debates:</strong> <p class="text-gray-600">${syn.debates}</p></div>` : ''}
+                        ${syn.gaps ? `<div class="mb-3"><strong class="text-sm">Gaps:</strong> <p class="text-gray-600">${syn.gaps}</p></div>` : ''}
+                    `}
+                </div>
+            `;
+        }
+
+        function addSynthesis() {
+            state.synthesesReports.unshift({
+                id: Date.now(),
+                theme: '', themes: '', debates: '', gaps: '', papers: ''
+            });
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editSynthesis(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateSynthesis(id, field, value) {
+            const syn = state.synthesesReports.find(s => s.id === id);
+            if (syn) syn[field] = value;
+        }
+
+        function deleteSynthesis(id) {
+            if (confirm('Delete this synthesis?')) {
+                state.synthesesReports = state.synthesesReports.filter(s => s.id !== id);
+                render();
+            }
+        }
+
+        function renderMainArguments() {
+            return `
+                <div class="max-w-5xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-light mb-2">💡 Main Arguments</h2>
+                                <p class="text-gray-600">Your thesis core & chapter flow</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h3 class="text-xl font-semibold mb-4">Core Thesis</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">What are you arguing?</label>
+                                <textarea class="w-full px-4 py-3 border rounded-xl" rows="4" onchange="state.mainArguments.thesis = this.value; saveState();">${state.mainArguments.thesis}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">Why does it matter?</label>
+                                <textarea class="w-full px-4 py-3 border rounded-xl" rows="4" onchange="state.mainArguments.whyMatters = this.value; saveState();">${state.mainArguments.whyMatters}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">Chapters</h3>
+                            <button onclick="addChapter()" class="px-4 py-2 bg-indigo-500 text-white rounded-lg">+ Add Chapter</button>
+                        </div>
+                        ${state.mainArguments.chapters.length === 0 ? `<p class="text-gray-500 text-center py-8">No chapters yet</p>` : `
+                            <div class="space-y-4">
+                                ${state.mainArguments.chapters.map((ch, idx) => renderChapterCard(ch, idx)).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderChapterCard(ch, idx) {
+            const isEditing = state.editingId === ch.id;
+            return `
+                <div class="border rounded-xl p-4">
+                    ${isEditing ? `
+                        <div class="space-y-3">
+                            <input class="w-full px-3 py-2 border rounded-xl" placeholder="Chapter ${idx + 1} Title" value="${ch.title}" onchange="updateChapter(${ch.id}, 'title', this.value)" />
+                            <textarea class="w-full px-3 py-2 border rounded-xl text-sm" rows="2" placeholder="Argument..." onchange="updateChapter(${ch.id}, 'argument', this.value)">${ch.argument || ''}</textarea>
+                            <div class="flex gap-2">
+                                <button onclick="saveEdit()" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-xl text-sm">Save</button>
+                                <button onclick="deleteChapter(${ch.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded-xl text-sm">Delete</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="flex justify-between">
+                            <div>
+                                <h4 class="font-semibold">Chapter ${idx + 1}: ${ch.title}</h4>
+                                ${ch.argument ? `<p class="text-sm text-gray-600">${ch.argument}</p>` : ''}
+                            </div>
+                            <button onclick="editChapter(${ch.id})" class="text-indigo-600">✏️</button>
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function addChapter() {
+            state.mainArguments.chapters.push({ id: Date.now(), title: '', argument: '' });
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editChapter(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateChapter(id, field, value) {
+            const ch = state.mainArguments.chapters.find(c => c.id === id);
+            if (ch) ch[field] = value;
+        }
+
+        function deleteChapter(id) {
+            if (confirm('Delete?')) {
+                state.mainArguments.chapters = state.mainArguments.chapters.filter(c => c.id !== id);
+                render();
+            }
+        }
+
+        function renderConnections() {
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-light mb-2">🗺️ Arguments & Connections</h2>
+                                <p class="text-gray-600">Theory meets data</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addConnection()" class="px-5 py-2 bg-blue-500 text-white rounded-lg">+ New Connection Map</button>
+                    </div>
+
+                    ${state.connections.length === 0 ? `
+                        <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+                            <p class="text-gray-500">No connections yet</p>
+                        </div>
+                    ` : `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${state.connections.map(conn => renderConnectionCard(conn)).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderConnectionCard(conn) {
+            const isEditing = state.editingId === conn.id;
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    ${isEditing ? `
+                        <div class="space-y-3">
+                            <input class="w-full px-3 py-2 border rounded-xl" placeholder="Title..." value="${conn.title}" onchange="updateConnection(${conn.id}, 'title', this.value)" />
+                            <input class="w-full px-3 py-2 border rounded-xl text-sm" placeholder="Concept/Theory" value="${conn.concept || ''}" onchange="updateConnection(${conn.id}, 'concept', this.value)" />
+                            <input class="w-full px-3 py-2 border rounded-xl text-sm" placeholder="Data/Evidence" value="${conn.data || ''}" onchange="updateConnection(${conn.id}, 'data', this.value)" />
+                            <textarea class="w-full px-3 py-2 border rounded-xl text-sm" rows="2" placeholder="How they connect..." onchange="updateConnection(${conn.id}, 'link', this.value)">${conn.link || ''}</textarea>
+                            <div class="flex gap-2">
+                                <button onclick="saveEdit()" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-xl text-sm">Save</button>
+                                <button onclick="deleteConnection(${conn.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded-xl text-sm">Delete</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="flex justify-between mb-3">
+                            <h3 class="font-semibold">${conn.title}</h3>
+                            <button onclick="editConnection(${conn.id})" class="text-blue-600">✏️</button>
+                        </div>
+                        ${conn.concept ? `<div class="flex items-center gap-2 text-sm mb-2"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Theory</span>${conn.concept}</div>` : ''}
+                        ${conn.data ? `<div class="flex items-center gap-2 text-sm mb-2"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Data</span>${conn.data}</div>` : ''}
+                    `}
+                </div>
+            `;
+        }
+
+        function addConnection() {
+            state.connections.unshift({ id: Date.now(), title: '', concept: '', data: '', link: '' });
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editConnection(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateConnection(id, field, value) {
+            const conn = state.connections.find(c => c.id === id);
+            if (conn) conn[field] = value;
+        }
+
+        function deleteConnection(id) {
+            if (confirm('Delete?')) {
+                state.connections = state.connections.filter(c => c.id !== id);
+                render();
+            }
+        }
+
+        function renderProgressTracker() {
+            const completed = state.dissertationMilestones.filter(m => m.status === 'Completed').length;
+            const inProgress = state.dissertationMilestones.filter(m => m.status === 'In Progress').length;
+
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-light mb-2">📊 Progress Tracker</h2>
+                                <p class="text-gray-600">Stay honest with yourself</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-3xl text-green-600">${completed}</div>
+                            <div class="text-sm text-gray-600">Completed</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-3xl text-blue-600">${inProgress}</div>
+                            <div class="text-sm text-gray-600">In Progress</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-3xl text-gray-600">${state.dissertationMilestones.length - completed - inProgress}</div>
+                            <div class="text-sm text-gray-600">Not Started</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addMilestone()" class="px-5 py-2 bg-green-500 text-white rounded-lg">+ Add Milestone</button>
+                    </div>
+
+                    ${state.dissertationMilestones.length === 0 ? `
+                        <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+                            <p class="text-gray-500">No milestones yet</p>
+                        </div>
+                    ` : `
+                        <div class="space-y-4">
+                            ${state.dissertationMilestones.map(m => renderMilestoneCard(m)).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderMilestoneCard(m) {
+            const isEditing = state.editingId === m.id;
+            const statColors = {
+                'Not Started': 'bg-gray-100 text-gray-700',
+                'In Progress': 'bg-blue-100 text-blue-700',
+                'Completed': 'bg-green-100 text-green-700'
+            };
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    ${isEditing ? `
+                        <div class="space-y-3">
+                            <input class="w-full px-4 py-3 border rounded-xl" placeholder="Milestone..." value="${m.title}" onchange="updateMilestone(${m.id}, 'title', this.value)" />
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="date" class="px-3 py-2 border rounded-xl text-sm" value="${m.deadline || ''}" onchange="updateMilestone(${m.id}, 'deadline', this.value)" />
+                                <select class="px-3 py-2 border rounded-xl text-sm" onchange="updateMilestone(${m.id}, 'status', this.value)">
+                                    <option value="Not Started" ${m.status === 'Not Started' ? 'selected' : ''}>Not Started</option>
+                                    <option value="In Progress" ${m.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                    <option value="Completed" ${m.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="saveEdit()" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-xl">Save</button>
+                                <button onclick="deleteMilestone(${m.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded-xl">Delete</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="flex justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2">${m.title}</h3>
+                                <div class="flex gap-2 items-center">
+                                    <span class="px-3 py-1 rounded-full text-xs ${statColors[m.status]}">${m.status}</span>
+                                    ${m.deadline ? `<span class="text-sm text-gray-500">Due: ${formatDate(m.deadline)}</span>` : ''}
+                                </div>
+                            </div>
+                            <button onclick="editMilestone(${m.id})" class="text-green-600">✏️</button>
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function addMilestone() {
+            state.dissertationMilestones.unshift({ id: Date.now(), title: '', deadline: '', status: 'Not Started' });
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editMilestone(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateMilestone(id, field, value) {
+            const m = state.dissertationMilestones.find(x => x.id === id);
+            if (m) m[field] = value;
+        }
+
+        function deleteMilestone(id) {
+            if (confirm('Delete?')) {
+                state.dissertationMilestones = state.dissertationMilestones.filter(m => m.id !== id);
+                render();
+            }
+        }
+
+        // RESEARCH SECTION (Simplified - core features only)
+        function renderResearch() {
+            if (state.currentSubView === 'literature') {
+                return renderResearchLiterature();
+            }
+
+            return `
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h2 class="text-3xl font-light mb-2">🔬 Research Database</h2>
+                        <p class="text-gray-600">Track multiple research projects</p>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addResearchProject()" class="px-5 py-2 bg-purple-500 text-white rounded-lg">
+                            + New Research Project
+                        </button>
+                    </div>
+
+                    ${state.researchProjects.length === 0 ? `
+                        <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+                            <p class="text-gray-500">No research projects yet</p>
+                        </div>
+                    ` : `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${state.researchProjects.map(p => renderResearchProjectCard(p)).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderResearchProjectCard(project) {
+            const isEditing = state.editingId === project.id;
+            const progress = phaseProgress[project.phase] || 0;
+            const articleCount = project.articles?.length || 0;
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    ${isEditing ? `
+                        <div class="space-y-3">
+                            <input class="w-full px-3 py-2 border rounded-xl" value="${project.title}" onchange="updateResearchProject(${project.id}, 'title', this.value)" />
+                            <select class="w-full px-3 py-2 border rounded-xl" onchange="updateResearchProject(${project.id}, 'topic', this.value)">
+                                ${topics.map(t => `<option value="${t}" ${project.topic === t ? 'selected' : ''}>${t}</option>`).join('')}
+                            </select>
+                            <select class="w-full px-3 py-2 border rounded-xl" onchange="updateResearchProject(${project.id}, 'phase', this.value)">
+                                ${phases.map(p => `<option value="${p}" ${project.phase === p ? 'selected' : ''}>${p}</option>`).join('')}
+                            </select>
+                            <textarea class="w-full px-3 py-2 border rounded-xl text-sm" rows="2" placeholder="Problem statement..." onchange="updateResearchProject(${project.id}, 'problemStatement', this.value)">${project.problemStatement || ''}</textarea>
+                            <div class="flex gap-2">
+                                <button onclick="saveEdit()" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-xl">Save</button>
+                                <button onclick="deleteResearchProject(${project.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded-xl">Delete</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="flex justify-between mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold">${project.title}</h3>
+                                <p class="text-sm text-gray-600">${project.topic}</p>
+                            </div>
+                            <button onclick="editResearchProject(${project.id})" class="text-purple-600">✏️</button>
+                        </div>
+                        <div class="h-2 bg-gray-100 rounded-full mb-3">
+                            <div class="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="flex gap-2 mb-3">
+                            <span class="px-3 py-1 rounded-full text-xs ${phaseColors[project.phase]}">${project.phase}</span>
+                            <span class="px-3 py-1 rounded-full text-xs bg-blue-100 text-blue-700">${articleCount} articles</span>
+                        </div>
+                        <button onclick="viewResearchLiterature(${project.id})" class="w-full py-2 bg-purple-100 text-purple-700 rounded-xl hover:bg-purple-200 text-sm">
+                            View Literature Review
+                        </button>
+                    `}
+                </div>
+            `;
+        }
+
+        function addResearchProject() {
+            state.researchProjects.unshift({
+                id: Date.now(),
+                title: 'New Project',
+                topic: '',
+                phase: 'Idea',
+                problemStatement: '',
+                articles: []
+            });
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editResearchProject(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateResearchProject(id, field, value) {
+            const p = state.researchProjects.find(x => x.id === id);
+            if (p) p[field] = value;
+        }
+
+        function deleteResearchProject(id) {
+            if (confirm('Delete project?')) {
+                state.researchProjects = state.researchProjects.filter(p => p.id !== id);
+                render();
+            }
+        }
+
+        function viewResearchLiterature(projectId) {
+            state.currentProjectId = projectId;
+            state.currentSubView = 'literature';
+            render();
+        }
+
+        function renderResearchLiterature() {
+            const project = state.researchProjects.find(p => p.id === state.currentProjectId);
+            if (!project) {
+                state.currentSubView = null;
+                render();
+                return '';
+            }
+
+            const articles = project.articles || [];
+
+            return `
+                <div class="max-w-full mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-2xl font-light mb-2">${project.title}</h2>
+                                <p class="text-gray-600">Literature Review • ${articles.length} articles</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addArticle()" class="px-5 py-2 bg-purple-500 text-white rounded-lg">+ Add Article</button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-purple-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">Article</th>
+                                    <th class="px-4 py-3 text-left">Problem/Gap</th>
+                                    <th class="px-4 py-3 text-left">Key Findings</th>
+                                    <th class="px-4 py-3 text-left">Status</th>
+                                    <th class="px-4 py-3 text-left">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${articles.length === 0 ? `
+                                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No articles yet</td></tr>
+                                ` : articles.map(a => renderArticleRow(a)).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderArticleRow(article) {
+            const isEditing = state.editingId === article.id;
+
+            if (isEditing) {
+                return `
+                    <tr class="border-b bg-blue-50">
+                        <td class="px-4 py-3">
+                            <input class="w-full px-2 py-1 border rounded text-xs mb-1" placeholder="Title" value="${article.title || ''}" onchange="updateArticle(${article.id}, 'title', this.value)" />
+                            <input class="w-full px-2 py-1 border rounded text-xs" placeholder="Authors" value="${article.authors || ''}" onchange="updateArticle(${article.id}, 'authors', this.value)" />
+                        </td>
+                        <td class="px-4 py-3">
+                            <textarea class="w-full px-2 py-1 border rounded text-xs h-20" onchange="updateArticle(${article.id}, 'researchGap', this.value)">${article.researchGap || ''}</textarea>
+                        </td>
+                        <td class="px-4 py-3">
+                            <textarea class="w-full px-2 py-1 border rounded text-xs h-20" onchange="updateArticle(${article.id}, 'keyFindings', this.value)">${article.keyFindings || ''}</textarea>
+                        </td>
+                        <td class="px-4 py-3">
+                            <select class="w-full px-2 py-1 border rounded text-xs" onchange="updateArticle(${article.id}, 'status', this.value)">
+                                <option value="To Read" ${article.status === 'To Read' ? 'selected' : ''}>To Read</option>
+                                <option value="Reading" ${article.status === 'Reading' ? 'selected' : ''}>Reading</option>
+                                <option value="Read" ${article.status === 'Read' ? 'selected' : ''}>Read</option>
+                                <option value="Cited" ${article.status === 'Cited' ? 'selected' : ''}>Cited</option>
+                            </select>
+                        </td>
+                        <td class="px-4 py-3">
+                            <button onclick="saveEdit()" class="bg-green-100 text-green-700 px-3 py-1 rounded text-xs mb-1 w-full">Save</button>
+                            <button onclick="deleteArticle(${article.id})" class="bg-red-100 text-red-700 px-3 py-1 rounded text-xs w-full">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            return `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-xs mb-1">${article.title || 'Untitled'}</div>
+                        <div class="text-gray-600 text-xs">${article.authors || ''}</div>
+                    </td>
+                    <td class="px-4 py-3 text-xs">${article.researchGap || '-'}</td>
+                    <td class="px-4 py-3 text-xs">${article.keyFindings || '-'}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded text-xs ${statusColors[article.status]}">${article.status || 'To Read'}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <button onclick="editArticle(${article.id})" class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs w-full">Edit</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function addArticle() {
+            const project = state.researchProjects.find(p => p.id === state.currentProjectId);
+            if (!project) return;
+            if (!project.articles) project.articles = [];
+            
+            project.articles.unshift({
+                id: Date.now(),
+                title: '', authors: '', status: 'To Read',
+                researchGap: '', keyFindings: ''
+            });
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editArticle(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateArticle(id, field, value) {
+            const project = state.researchProjects.find(p => p.id === state.currentProjectId);
+            if (!project) return;
+            const article = project.articles.find(a => a.id === id);
+            if (article) article[field] = value;
+        }
+
+        function deleteArticle(id) {
+            if (confirm('Delete article?')) {
+                const project = state.researchProjects.find(p => p.id === state.currentProjectId);
+                if (project) {
+                    project.articles = project.articles.filter(a => a.id !== id);
+                    render();
+                }
+            }
+        }
+
+        // DEGREE SECTION (Simplified)
+        function renderDegree() {
+            if (state.currentSubView === 'class') {
+                return renderClassView();
+            }
+
+            const activeClasses = state.classes.filter(c => c.status === 'Current').length;
+
+            return `
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h2 class="text-3xl font-light mb-2">🎓 Degree Tracker</h2>
+                        <p class="text-gray-600">Courses, assignments, and deadlines</p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-3xl text-gray-800">${state.classes.length}</div>
+                            <div class="text-sm text-gray-600">Total Classes</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-3xl text-gray-800">${activeClasses}</div>
+                            <div class="text-sm text-gray-600">Active Classes</div>
+                        </div>
+                        <div class="bg-white rounded-2xl p-6 shadow-sm">
+                            <div class="text-3xl text-gray-800">${state.classes.filter(c => c.status === 'Completed').length}</div>
+                            <div class="text-sm text-gray-600">Completed</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addClass()" class="px-5 py-2 bg-blue-500 text-white rounded-lg">+ Add Class</button>
+                    </div>
+
+                    ${state.classes.length === 0 ? `
+                        <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+                            <p class="text-gray-500">No classes yet</p>
+                        </div>
+                    ` : `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${state.classes.map(c => renderClassCard(c)).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderClassCard(cls) {
+            const assignments = cls.assignments || [];
+            const completed = assignments.filter(a => a.status === 'Graded').length;
+            const total = assignments.length;
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    <div class="flex justify-between mb-3">
+                        <div>
+                            <h3 class="text-lg font-semibold">${cls.code}</h3>
+                            <p class="text-sm text-gray-600">${cls.title}</p>
+                        </div>
+                        <button onclick="deleteClass(${cls.id})" class="text-red-600">🗑️</button>
+                    </div>
+
+                    <div class="flex gap-2 mb-3">
+                        <span class="px-3 py-1 rounded-full text-xs ${classStatusColors[cls.status]}">${cls.status}</span>
+                        ${cls.credits ? `<span class="px-3 py-1 rounded-full text-xs bg-indigo-100 text-indigo-700">${cls.credits} credits</span>` : ''}
+                    </div>
+
+                    ${total > 0 ? `
+                        <div class="mt-3">
+                            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                <span>${completed}/${total} complete</span>
+                                <span>${progress}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-500 h-2 rounded-full" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <button onclick="viewClass(${cls.id})" class="w-full mt-3 py-2 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 text-sm">
+                        View Assignments
+                    </button>
+                </div>
+            `;
+        }
+
+        function addClass() {
+            const code = prompt('Class Code (e.g., DBA 800):');
+            if (!code) return;
+            const title = prompt('Class Title:');
+            if (!title) return;
+
+            state.classes.push({
+                id: Date.now(),
+                code: code,
+                title: title,
+                status: 'Current',
+                credits: 3,
+                assignments: []
+            });
+            render();
+        }
+
+        function deleteClass(id) {
+            if (confirm('Delete class?')) {
+                state.classes = state.classes.filter(c => c.id !== id);
+                render();
+            }
+        }
+
+        function viewClass(id) {
+            state.currentClassId = id;
+            state.currentSubView = 'class';
+            render();
+        }
+
+        function renderClassView() {
+            const cls = state.classes.find(c => c.id === state.currentClassId);
+            if (!cls) {
+                state.currentSubView = null;
+                render();
+                return '';
+            }
+
+            const assignments = cls.assignments || [];
+
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-2xl font-light mb-2">${cls.code} - ${cls.title}</h2>
+                                <p class="text-gray-600">${assignments.length} assignments</p>
+                            </div>
+                            <button onclick="state.currentSubView = null; render();" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <button onclick="addAssignment(${cls.id})" class="px-5 py-2 bg-blue-500 text-white rounded-lg">+ Add Assignment</button>
+                    </div>
+
+                    ${assignments.length === 0 ? `
+                        <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+                            <p class="text-gray-500">No assignments yet</p>
+                        </div>
+                    ` : `
+                        <div class="space-y-4">
+                            ${assignments.map(a => renderAssignmentCard(a, cls.id)).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderAssignmentCard(assignment, classId) {
+            const isEditing = state.editingId === assignment.id;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dueDate = new Date(assignment.dueDate);
+            const isOverdue = dueDate < today && assignment.status !== 'Submitted' && assignment.status !== 'Graded';
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6 ${isOverdue ? 'border-2 border-red-300' : ''}">
+                    ${isEditing ? `
+                        <div class="space-y-3">
+                            <input class="w-full px-3 py-2 border rounded-xl" placeholder="Title" value="${assignment.title}" onchange="updateAssignment(${classId}, ${assignment.id}, 'title', this.value)" />
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="date" class="px-3 py-2 border rounded-xl text-sm" value="${assignment.dueDate}" onchange="updateAssignment(${classId}, ${assignment.id}, 'dueDate', this.value)" />
+                                <select class="px-3 py-2 border rounded-xl text-sm" onchange="updateAssignment(${classId}, ${assignment.id}, 'status', this.value)">
+                                    <option value="Not Started" ${assignment.status === 'Not Started' ? 'selected' : ''}>Not Started</option>
+                                    <option value="In Progress" ${assignment.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                    <option value="Submitted" ${assignment.status === 'Submitted' ? 'selected' : ''}>Submitted</option>
+                                    <option value="Graded" ${assignment.status === 'Graded' ? 'selected' : ''}>Graded</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="saveEdit()" class="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-xl">Save</button>
+                                <button onclick="deleteAssignment(${classId}, ${assignment.id})" class="px-3 py-2 bg-red-100 text-red-700 rounded-xl">Delete</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="flex justify-between mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold">${assignment.title}</h3>
+                                <div class="flex gap-2 mt-2">
+                                    <span class="px-3 py-1 rounded-full text-xs ${statusColors[isOverdue ? 'Overdue' : assignment.status]}">${isOverdue ? 'Overdue' : assignment.status}</span>
+                                    <span class="px-3 py-1 rounded-full text-xs ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}">
+                                        Due ${formatDate(assignment.dueDate)}
+                                    </span>
+                                </div>
+                            </div>
+                            <button onclick="editAssignment(${assignment.id})" class="text-blue-600">✏️</button>
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function addAssignment(classId) {
+            const cls = state.classes.find(c => c.id === classId);
+            if (!cls) return;
+            if (!cls.assignments) cls.assignments = [];
+
+            cls.assignments.push({
+                id: Date.now(),
+                title: '',
+                dueDate: new Date().toISOString().split('T')[0],
+                status: 'Not Started',
+                points: 100
+            });
+
+            state.editingId = Date.now();
+            render();
+        }
+
+        function editAssignment(id) {
+            state.editingId = id;
+            render();
+        }
+
+        function updateAssignment(classId, assignmentId, field, value) {
+            const cls = state.classes.find(c => c.id === classId);
+            if (!cls) return;
+            const assignment = cls.assignments.find(a => a.id === assignmentId);
+            if (assignment) assignment[field] = value;
+        }
+
+        function deleteAssignment(classId, assignmentId) {
+            if (!confirm('Delete assignment?')) return;
+            const cls = state.classes.find(c => c.id === classId);
+            if (cls) {
+                cls.assignments = cls.assignments.filter(a => a.id !== assignmentId);
+                render();
+            }
+        }
+
+        // UTILITY FUNCTIONS
+        function saveEdit() {
+            state.editingId = null;
+            render();
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+            });
+        }
+
+        function exportAllData() {
+            const data = {
+                dissertation: {
+                    topic: state.dissertationTopic,
+                    logs: state.dailyLogs,
+                    syntheses: state.synthesesReports,
+                    arguments: state.mainArguments,
+                    connections: state.connections,
+                    milestones: state.dissertationMilestones
+                },
+                research: state.researchProjects,
+                degree: {
+                    classes: state.classes,
+                    catalog: state.courseCatalog
+                },
+                exportDate: new Date().toISOString()
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `dba_complete_backup_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // STATE PERSISTENCE
+        function saveState() {
+            localStorage.setItem('dbaCompleteTracker', JSON.stringify({
+                dissertationTopic: state.dissertationTopic,
+                dailyLogs: state.dailyLogs,
+                synthesesReports: state.synthesesReports,
+                mainArguments: state.mainArguments,
+                connections: state.connections,
+                dissertationMilestones: state.dissertationMilestones,
+                researchProjects: state.researchProjects,
+                classes: state.classes,
+                courseCatalog: state.courseCatalog
+            }));
+        }
+
+        function loadState() {
+            // Try to load from the new combined storage first
+            const saved = localStorage.getItem('dbaCompleteTracker');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    state.dissertationTopic = data.dissertationTopic || state.dissertationTopic;
+                    state.dailyLogs = data.dailyLogs || [];
+                    state.synthesesReports = data.synthesesReports || [];
+                    state.mainArguments = data.mainArguments || state.mainArguments;
+                    state.connections = data.connections || [];
+                    state.dissertationMilestones = data.dissertationMilestones || [];
+                    state.researchProjects = data.researchProjects || state.researchProjects;
+                    state.classes = data.classes || state.classes;
+                    state.courseCatalog = data.courseCatalog || state.courseCatalog;
+                    console.log('✅ Loaded from combined tracker storage');
+                    return;
+                } catch (e) {
+                    console.error('Error loading combined data:', e);
+                }
+            }
+            
+            // MIGRATION: Load from original separate localStorage keys
+            console.log('🔄 No combined data found, checking original trackers...');
+            let migrated = false;
+            
+            try {
+                // Load research data from original key
+                const researchData = localStorage.getItem('researchDashboardState');
+                if (researchData) {
+                    const parsed = JSON.parse(researchData);
+                    state.researchProjects = parsed.projects || [];
+                    state.zoteroApiKey = parsed.zoteroApiKey || '';
+                    state.zoteroUserId = parsed.zoteroUserId || '';
+                    console.log('✅ Migrated research data:', state.researchProjects.length, 'projects');
+                    migrated = true;
+                }
+
+                // Load degree data from original key
+                const degreeData = localStorage.getItem('dbaTrackerState');
+                if (degreeData) {
+                    const parsed = JSON.parse(degreeData);
+                    state.classes = parsed.classes || [];
+                    state.courseCatalog = parsed.courseCatalog || [];
+                    state.showAssignmentTracker = parsed.showAssignmentTracker !== undefined ? parsed.showAssignmentTracker : true;
+                    console.log('✅ Migrated degree data:', state.classes.length, 'classes');
+                    migrated = true;
+                }
+
+                // Save to new combined key for future use
+                if (migrated) {
+                    console.log('💾 Saving migrated data to combined storage');
+                    saveState();
+                }
+            } catch (e) {
+                console.error('Error migrating data:', e);
+            }
+        }
+
+        // Initialize - LOAD STATE BEFORE RENDERING
+        loadState();
+        const originalRender = render;
+        render = function() {
+            originalRender();
+            saveState();
+        };
+
+        render();
+    </script>
+</body>
+</html>
