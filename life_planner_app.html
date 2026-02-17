@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Life Planner">
+    <meta name="theme-color" content="#D4748A">
+    <title>Life Planner — Your Everything App</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
+    
+    <style>
+        :root {
+            --cream: #FFF8F0;
+            --blush: #F2B5C0;
+            --rose: #D4748A;
+            --deep-rose: #B05070;
+            --sage: #8BAF8A;
+            --light-sage: #C5D9C4;
+            --mint: #D4EDD4;
+            --lavender: #C9B8D8;
+            --peach: #F5C5A3;
+            --gold: #C8A96E;
+            --warm-white: #FFFCF7;
+            --brown: #8B6355;
+            --dark-brown: #5C3D2E;
+            --soft-blue: #A8C8D8;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: linear-gradient(135deg, var(--cream) 0%, var(--warm-white) 50%, #FFF5F0 100%);
+            color: var(--dark-brown);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(212, 116, 138, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(139, 175, 138, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            background: linear-gradient(180deg, rgba(255,252,247,0.95) 0%, rgba(255,248,240,0.95) 100%);
+            backdrop-filter: blur(10px);
+            border-right: 2px solid var(--rose);
+            padding: 2rem 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 4px 0 20px rgba(212, 116, 138, 0.08);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding: 0 1.5rem;
+        }
+        
+        .logo h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--deep-rose);
+            margin-bottom: 0.25rem;
+        }
+        
+        .logo p {
+            font-size: 0.75rem;
+            color: var(--brown);
+            font-weight: 300;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+        
+        .nav-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--brown);
+            padding: 0 1.5rem;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .nav-item {
+            padding: 0.875rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 500;
+            color: var(--dark-brown);
+            user-select: none;
+        }
+        
+        .nav-item:hover {
+            background: linear-gradient(90deg, rgba(242, 181, 192, 0.15) 0%, transparent 100%);
+            border-left-color: var(--blush);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(212, 116, 138, 0.12) 0%, rgba(212, 116, 138, 0.03) 100%);
+            border-left-color: var(--rose);
+            color: var(--deep-rose);
+            font-weight: 600;
+        }
+        
+        .badge {
+            margin-left: auto;
+            background: var(--rose);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .main-content {
+            padding: 2rem 3rem;
+            overflow-y: auto;
+        }
+        
+        .page {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .page.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .page-header {
+            margin-bottom: 2rem;
+        }
+        
+        .page-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--deep-rose);
+            margin-bottom: 0.5rem;
+        }
+        
+        .page-subtitle {
+            color: var(--brown);
+            font-size: 1rem;
+            font-weight: 300;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1.5px solid rgba(212, 116, 138, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(212, 116, 138, 0.15);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(212, 116, 138, 0.15);
+        }
+        
+        .card-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--deep-rose);
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            border: none;
+            font-family: 'Quicksand', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--rose);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--deep-rose);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(212, 116, 138, 0.3);
+        }
+        
+        .btn-secondary {
+            background: var(--sage);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #6B9B6A;
+        }
+        
+        .input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1.5px solid rgba(212, 116, 138, 0.2);
+            border-radius: 8px;
+            font-family: 'Quicksand', sans-serif;
+            font-size: 0.95rem;
+            background: white;
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: var(--rose);
+            box-shadow: 0 0 0 3px rgba(212, 116, 138, 0.1);
+        }
+        
+        textarea.input {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(255, 248, 240, 0.5);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--blush);
+        }
+        
+        .task-item.completed {
+            opacity: 0.6;
+        }
+        
+        .task-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--rose);
+            border-radius: 4px;
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-top: 2px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+        }
+        
+        .task-checkbox.checked {
+            background: var(--rose);
+            color: white;
+        }
+        
+        .task-text {
+            flex: 1;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--sage);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 10000;
+        }
+        
+        .toast.show {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.5rem;
+            color: var(--deep-rose);
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--dark-brown);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--brown);
+        }
+        
+        @media (max-width: 968px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                position: relative;
+                height: auto;
+                border-right: none;
+                border-bottom: 2px solid var(--rose);
+            }
+            .main-content {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>Life Planner</h1>
+                <p>Your Everything App</p>
+            </div>
+            
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Overview</div>
+                    <div class="nav-item" data-page="inbox">
+                        <span>📥</span>
+                        <span>Inbox</span>
+                        <span class="badge" id="inbox-count">0</span>
+                    </div>
+                    <div class="nav-item active" data-page="dashboard">
+                        <span>🏡</span>
+                        <span>Dashboard</span>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Planning</div>
+                    <div class="nav-item" data-page="calendar">
+                        <span>📅</span>
+                        <span>Calendar</span>
+                    </div>
+                    <div class="nav-item" data-page="tasks">
+                        <span>✓</span>
+                        <span>Tasks</span>
+                    </div>
+                    <div class="nav-item" data-page="notes">
+                        <span>📝</span>
+                        <span>Notes</span>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Specialized</div>
+                    <div class="nav-item" data-page="research">
+                        <span>🔬</span>
+                        <span>Research Ideas</span>
+                    </div>
+                    <div class="nav-item" data-page="dba">
+                        <span>📊</span>
+                        <span>DBA Dashboard</span>
+                    </div>
+                    <div class="nav-item" data-page="fitness">
+                        <span>💪</span>
+                        <span>Fitness Tracker</span>
+                    </div>
+                    <div class="nav-item" data-page="crafts">
+                        <span>🧵</span>
+                        <span>Craft Projects</span>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <!-- Dashboard -->
+            <div id="page-dashboard" class="page active">
+                <div class="page-header">
+                    <h1 class="page-title">Good Morning! 🌸</h1>
+                    <p class="page-subtitle" id="current-date"></p>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <span>✨</span>
+                        <h3 class="card-title">Quick Stats</h3>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div style="text-align: center; padding: 1rem; background: rgba(212, 237, 212, 0.2); border-radius: 8px;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--deep-rose);" id="task-count">0</div>
+                            <div style="font-size: 0.85rem; color: var(--brown);">Active Tasks</div>
+                        </div>
+                        <div style="text-align: center; padding: 1rem; background: rgba(201, 184, 216, 0.2); border-radius: 8px;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--deep-rose);" id="research-count">0</div>
+                            <div style="font-size: 0.85rem; color: var(--brown);">Research Ideas</div>
+                        </div>
+                        <div style="text-align: center; padding: 1rem; background: rgba(242, 181, 192, 0.2); border-radius: 8px;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--deep-rose);" id="inbox-count-dash">0</div>
+                            <div style="font-size: 0.85rem; color: var(--brown);">Inbox Items</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <span>📚</span>
+                        <h3 class="card-title">Upcoming DBA Assignments</h3>
+                    </div>
+                    <div id="upcoming-assignments"></div>
+                </div>
+            </div>
+
+            <!-- Calendar -->
+            <div id="page-calendar" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Calendar 📅</h1>
+                    <p class="page-subtitle">Multi-calendar view (Work • Life • School • Fitness)</p>
+                </div>
+                
+                <div style="background: white; border-radius: 16px; overflow: hidden; border: 1.5px solid rgba(212, 116, 138, 0.2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);">
+                    <iframe 
+                        src="./calendar_integration.html" 
+                        style="width: 100%; height: 800px; border: none; display: block;"
+                        title="Calendar Integration"
+                    ></iframe>
+                </div>
+            </div>
+
+            <!-- Inbox -->
+            <div id="page-inbox" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Inbox 📥</h1>
+                    <p class="page-subtitle">Process your voice notes and quick captures</p>
+                </div>
+                <button class="btn btn-primary" onclick="app.addInboxItem()" style="margin-bottom: 1.5rem;">+ Add Note</button>
+                <div id="inbox-list"></div>
+            </div>
+
+            <!-- Tasks -->
+            <div id="page-tasks" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Tasks ✓</h1>
+                    <p class="page-subtitle">Your to-do list</p>
+                </div>
+                <button class="btn btn-primary" onclick="app.addTask()" style="margin-bottom: 1.5rem;">+ Add Task</button>
+                <div id="task-list"></div>
+            </div>
+
+            <!-- Notes -->
+            <div id="page-notes" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Notes 📝</h1>
+                    <p class="page-subtitle">Your note-taking space</p>
+                </div>
+                <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                    <button class="btn btn-primary" onclick="app.saveCurrentNote()">💾 Save</button>
+                    <button class="btn btn-secondary" onclick="app.sendToGoodNotes()">📝 Open in GoodNotes</button>
+                </div>
+                <div class="card">
+                    <textarea class="input" id="note-content" placeholder="Start typing your notes here..." style="min-height: 400px; font-family: 'Quicksand', sans-serif; line-height: 1.8;"></textarea>
+                </div>
+            </div>
+
+            <!-- Research Ideas -->
+            <div id="page-research" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Research Ideas 🔬</h1>
+                    <p class="page-subtitle">DBA research database</p>
+                </div>
+                
+                <div class="card">
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🔬</div>
+                        <h3 style="color: var(--deep-rose); margin-bottom: 1rem;">Access Your Research Database</h3>
+                        <p style="color: var(--brown); margin-bottom: 2rem;">
+                            Your full research database with projects, literature reviews, and tracking.
+                        </p>
+                        <button class="btn btn-primary" onclick="openDBAResearch()" style="font-size: 1.1rem; padding: 1rem 2rem;">
+                            🚀 Open Research Database
+                        </button>
+                        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--brown);">
+                            Opens your DBA tracker to the Research tab
+                        </p>
+                    </div>
+                    
+                    <div style="border-top: 1px solid rgba(212, 116, 138, 0.15); padding-top: 1.5rem; margin-top: 1.5rem;">
+                        <h4 style="color: var(--deep-rose); margin-bottom: 1rem;">Quick Add</h4>
+                        <button class="btn btn-secondary" onclick="app.addResearchIdea()" style="width: 100%; margin-bottom: 1rem;">+ Quick Research Idea</button>
+                        
+                        <h4 style="color: var(--deep-rose); margin-bottom: 1rem; margin-top: 1.5rem;">Recent Ideas</h4>
+                        <div id="research-list-preview"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DBA Dashboard -->
+            <div id="page-dba" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">DBA Dashboard 📊</h1>
+                    <p class="page-subtitle">Your complete academic tracker</p>
+                </div>
+                
+                <div class="card">
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                        <h3 style="color: var(--deep-rose); margin-bottom: 1rem;">Access Your Complete DBA Tracker</h3>
+                        <p style="color: var(--brown); margin-bottom: 2rem;">
+                            Your full DBA tracker includes dissertation planning, research database, class tracking, and more.
+                        </p>
+                        <button class="btn btn-primary" onclick="window.open('dba_tracker_embedded.html', 'dba_tracker')" style="font-size: 1.1rem; padding: 1rem 2rem;">
+                            🚀 Open DBA Tracker
+                        </button>
+                        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--brown);">
+                            Opens in a new window. Keep both open to switch between them!
+                        </p>
+                    </div>
+                    
+                    <div style="border-top: 1px solid rgba(212, 116, 138, 0.15); padding-top: 1.5rem; margin-top: 1.5rem;">
+                        <h4 style="color: var(--deep-rose); margin-bottom: 1rem;">Quick Stats</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                            <div style="text-align: center; padding: 1rem; background: rgba(212, 237, 212, 0.2); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--deep-rose);" id="dba-research-count">-</div>
+                                <div style="font-size: 0.85rem; color: var(--brown);">Research Projects</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: rgba(201, 184, 216, 0.2); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--deep-rose);" id="dba-class-count">-</div>
+                                <div style="font-size: 0.85rem; color: var(--brown);">Classes</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fitness Tracker -->
+            <div id="page-fitness" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Fitness Tracker 💪</h1>
+                    <p class="page-subtitle">Marathon training and workout tracking</p>
+                </div>
+                
+                <div class="card">
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🏃‍♀️</div>
+                        <h3 style="color: var(--deep-rose); margin-bottom: 1rem;">Marathon Training Tracker</h3>
+                        <p style="color: var(--brown); margin-bottom: 2rem;">
+                            Full training plan, strength workouts, race tracking, and progress monitoring.
+                        </p>
+                        <button class="btn btn-primary" onclick="window.open('marathon_tracker.html', 'marathon_tracker')" style="font-size: 1.1rem; padding: 1rem 2rem;">
+                            🚀 Open Marathon Tracker
+                        </button>
+                        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--brown);">
+                            Opens your complete training tracker in a new window
+                        </p>
+                    </div>
+                    
+                    <div style="border-top: 1px solid rgba(212, 116, 138, 0.15); padding-top: 1.5rem; margin-top: 1.5rem;">
+                        <h4 style="color: var(--deep-rose); margin-bottom: 1rem;">Quick Log</h4>
+                        <button class="btn btn-secondary" onclick="app.addWorkout()" style="width: 100%; margin-bottom: 1rem;">+ Quick Workout Log</button>
+                        
+                        <h4 style="color: var(--deep-rose); margin-bottom: 1rem; margin-top: 1.5rem;">Recent Workouts</h4>
+                        <div id="workout-list-preview"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crafts Tracker -->
+            <div id="page-crafts" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">Craft Projects 🧵</h1>
+                    <p class="page-subtitle">Track your sewing, yarn, and craft projects</p>
+                </div>
+                <button class="btn btn-primary" onclick="app.addCraftProject()" style="margin-bottom: 1.5rem;">+ New Project</button>
+                <div id="craft-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" id="modal-title">Modal</div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // App State Management
+        const app = {
+            data: {
+                inbox: [],
+                tasks: [],
+                research: [],
+                notes: '',
+                workouts: [],
+                craftProjects: []
+            },
+            
+            init() {
+                this.loadData();
+                this.renderAll();
+                this.setupNav();
+                this.updateStats();
+                document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                });
+            },
+            
+            loadData() {
+                const saved = localStorage.getItem('lifePlannerData');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    this.data = {
+                        inbox: parsed.inbox || [],
+                        tasks: parsed.tasks || [],
+                        research: parsed.research || [],
+                        notes: parsed.notes || '',
+                        workouts: parsed.workouts || [],
+                        craftProjects: parsed.craftProjects || []
+                    };
+                }
+            },
+            
+            saveData() {
+                localStorage.setItem('lifePlannerData', JSON.stringify(this.data));
+                this.updateStats();
+            },
+            
+            setupNav() {
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const page = item.dataset.page;
+                        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                        document.getElementById(`page-${page}`).classList.add('active');
+                    });
+                });
+            },
+            
+            updateStats() {
+                document.getElementById('task-count').textContent = this.data.tasks.filter(t => !t.completed).length;
+                document.getElementById('research-count').textContent = this.data.research.length;
+                document.getElementById('inbox-count').textContent = this.data.inbox.length;
+                document.getElementById('inbox-count-dash').textContent = this.data.inbox.length;
+                if (this.data.inbox.length === 0) {
+                    document.getElementById('inbox-count').style.display = 'none';
+                } else {
+                    document.getElementById('inbox-count').style.display = 'block';
+                }
+                
+                // Load DBA stats if available
+                try {
+                    const dbaData = localStorage.getItem('dbaCompleteTracker');
+                    if (dbaData) {
+                        const dba = JSON.parse(dbaData);
+                        const researchCountEl = document.getElementById('dba-research-count');
+                        const classCountEl = document.getElementById('dba-class-count');
+                        if (researchCountEl) {
+                            researchCountEl.textContent = (dba.researchProjects || []).length;
+                        }
+                        if (classCountEl) {
+                            classCountEl.textContent = (dba.classes || []).length;
+                        }
+                        
+                        // Load upcoming assignments for dashboard
+                        this.loadUpcomingAssignments(dba);
+                    }
+                } catch (e) {
+                    console.log('No DBA data yet');
+                }
+            },
+            
+            loadUpcomingAssignments(dbaData) {
+                const assignmentsEl = document.getElementById('upcoming-assignments');
+                if (!assignmentsEl) return;
+                
+                const classes = dbaData.classes || [];
+                const today = new Date();
+                const twoWeeksFromNow = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+                
+                // Collect all upcoming assignments
+                let upcomingAssignments = [];
+                classes.forEach(cls => {
+                    if (cls.assignments) {
+                        cls.assignments.forEach(assignment => {
+                            const dueDate = new Date(assignment.dueDate);
+                            if (dueDate >= today && dueDate <= twoWeeksFromNow && !assignment.completed) {
+                                upcomingAssignments.push({
+                                    ...assignment,
+                                    className: cls.name,
+                                    dueDate: dueDate
+                                });
+                            }
+                        });
+                    }
+                });
+                
+                // Sort by due date
+                upcomingAssignments.sort((a, b) => a.dueDate - b.dueDate);
+                
+                if (upcomingAssignments.length === 0) {
+                    assignmentsEl.innerHTML = `
+                        <div style="text-align: center; padding: 2rem; color: var(--brown);">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎉</div>
+                            <p>No assignments due in the next 2 weeks!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                assignmentsEl.innerHTML = upcomingAssignments.slice(0, 5).map(a => {
+                    const daysUntilDue = Math.ceil((a.dueDate - today) / (1000 * 60 * 60 * 24));
+                    const isUrgent = daysUntilDue <= 3;
+                    
+                    return `
+                        <div class="task-item" style="border-left-color: ${isUrgent ? '#DC2626' : 'var(--lavender)'}; ${isUrgent ? 'background: rgba(220, 38, 38, 0.05);' : ''}">
+                            <div style="font-size: 1.2rem;">${isUrgent ? '⚠️' : '📝'}</div>
+                            <div class="task-text" style="flex: 1;">
+                                <div style="font-weight: 600; color: ${isUrgent ? '#DC2626' : 'var(--dark-brown)'};">${a.name}</div>
+                                <div style="font-size: 0.85rem; color: var(--brown);">
+                                    ${a.className} • Due ${a.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    ${isUrgent ? ` (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}!)` : ''}
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="window.open('dba_tracker_embedded.html', 'dba_tracker')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                View in DBA
+                            </button>
+                        </div>
+                    `;
+                }).join('') + (upcomingAssignments.length > 5 ? `
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="window.open('dba_tracker_embedded.html', 'dba_tracker')" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                            View All ${upcomingAssignments.length} Assignments →
+                        </button>
+                    </div>
+                ` : '');
+            },
+            
+            renderAll() {
+                this.renderInbox();
+                this.renderTasks();
+                this.renderResearch();
+                this.renderWorkouts();
+                this.renderCrafts();
+                this.loadNote();
+            },
+            
+            // Inbox
+            addInboxItem() {
+                const content = prompt('Enter your note:');
+                if (content) {
+                    this.data.inbox.push({
+                        id: Date.now(),
+                        content,
+                        timestamp: new Date().toISOString()
+                    });
+                    this.saveData();
+                    this.renderInbox();
+                }
+            },
+            
+            processInboxItem(id, action) {
+                const item = this.data.inbox.find(i => i.id === id);
+                if (!item) return;
+                
+                if (action === 'research') {
+                    this.data.research.push({
+                        id: Date.now(),
+                        title: item.content.substring(0, 60) + '...',
+                        content: item.content,
+                        status: 'exploring',
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Sync to DBA tracker
+                    try {
+                        const dbaData = localStorage.getItem('dbaCompleteTracker');
+                        if (dbaData) {
+                            const dba = JSON.parse(dbaData);
+                            if (!dba.researchProjects) dba.researchProjects = [];
+                            dba.researchProjects.push({
+                                id: Date.now(),
+                                name: item.content.substring(0, 60),
+                                description: item.content,
+                                status: 'Planning',
+                                startDate: new Date().toISOString().split('T')[0],
+                                tags: []
+                            });
+                            localStorage.setItem('dbaCompleteTracker', JSON.stringify(dba));
+                        }
+                    } catch (e) {}
+                    
+                    this.showToast('🔬 Added to Research Ideas!');
+                } else if (action === 'task') {
+                    this.data.tasks.push({
+                        id: Date.now(),
+                        text: item.content,
+                        completed: false,
+                        timestamp: new Date().toISOString()
+                    });
+                    this.showToast('✓ Added to Tasks!');
+                } else if (action === 'crafts') {
+                    this.data.craftProjects.push({
+                        id: Date.now(),
+                        name: item.content.substring(0, 60),
+                        type: 'Other',
+                        status: 'planning',
+                        notes: item.content,
+                        timestamp: new Date().toISOString()
+                    });
+                    this.showToast('🧵 Added to Craft Projects!');
+                } else if (action === 'goodnotes') {
+                    this.showToast('📝 Sent to GoodNotes!');
+                    setTimeout(() => {
+                        alert('In the real app, this would create a new GoodNotes page with this content!');
+                    }, 500);
+                }
+                
+                this.data.inbox = this.data.inbox.filter(i => i.id !== id);
+                this.saveData();
+                this.renderAll();
+            },
+            
+            renderInbox() {
+                const list = document.getElementById('inbox-list');
+                if (this.data.inbox.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div><h3 style="color: var(--deep-rose);">All caught up!</h3><p>No notes to process.</p></div>';
+                    return;
+                }
+                
+                list.innerHTML = this.data.inbox.map(item => `
+                    <div class="card">
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem;">🎙️ Voice Note</div>
+                            <div style="font-size: 0.85rem; color: var(--brown);">${new Date(item.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div style="background: rgba(255,248,240,0.5); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            ${item.content}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="app.processInboxItem(${item.id}, 'research')">🔬 Research</button>
+                            <button class="btn btn-secondary" onclick="app.processInboxItem(${item.id}, 'task')">✓ Task</button>
+                            <button class="btn btn-secondary" onclick="app.processInboxItem(${item.id}, 'goodnotes')">📝 GoodNotes</button>
+                            <button class="btn" style="background: #ddd;" onclick="app.deleteInboxItem(${item.id})">Archive</button>
+                        </div>
+                    </div>
+                `).join('');
+            },
+            
+            deleteInboxItem(id) {
+                this.data.inbox = this.data.inbox.filter(i => i.id !== id);
+                this.saveData();
+                this.renderInbox();
+            },
+            
+            // Tasks
+            addTask() {
+                const text = prompt('Enter task:');
+                if (text) {
+                    this.data.tasks.push({
+                        id: Date.now(),
+                        text,
+                        completed: false,
+                        timestamp: new Date().toISOString()
+                    });
+                    this.saveData();
+                    this.renderTasks();
+                }
+            },
+            
+            toggleTask(id) {
+                const task = this.data.tasks.find(t => t.id === id);
+                if (task) {
+                    task.completed = !task.completed;
+                    this.saveData();
+                    this.renderTasks();
+                }
+            },
+            
+            deleteTask(id) {
+                this.data.tasks = this.data.tasks.filter(t => t.id !== id);
+                this.saveData();
+                this.renderTasks();
+            },
+            
+            renderTasks() {
+                const list = document.getElementById('task-list');
+                if (this.data.tasks.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><div style="font-size: 3rem; margin-bottom: 1rem;">✓</div><h3 style="color: var(--deep-rose);">No tasks yet</h3><p>Add your first task to get started!</p></div>';
+                    return;
+                }
+                
+                list.innerHTML = this.data.tasks.map(task => `
+                    <div class="task-item ${task.completed ? 'completed' : ''}">
+                        <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="app.toggleTask(${task.id})">
+                            ${task.completed ? '✓' : ''}
+                        </div>
+                        <div class="task-text" style="${task.completed ? 'text-decoration: line-through;' : ''}">${task.text}</div>
+                        <div style="opacity: 0.5; cursor: pointer;" onclick="app.deleteTask(${task.id})">🗑</div>
+                    </div>
+                `).join('');
+            },
+            
+            // Research
+            addResearchIdea() {
+                const title = prompt('Research idea title:');
+                if (title) {
+                    const content = prompt('Description (optional):') || '';
+                    this.data.research.push({
+                        id: Date.now(),
+                        title,
+                        content,
+                        status: 'exploring',
+                        timestamp: new Date().toISOString()
+                    });
+                    this.saveData();
+                    this.renderResearch();
+                    
+                    // Also add to DBA tracker research database if it exists
+                    try {
+                        const dbaData = localStorage.getItem('dbaCompleteTracker');
+                        if (dbaData) {
+                            const dba = JSON.parse(dbaData);
+                            if (!dba.researchProjects) dba.researchProjects = [];
+                            dba.researchProjects.push({
+                                id: Date.now(),
+                                name: title,
+                                description: content,
+                                status: 'Planning',
+                                startDate: new Date().toISOString().split('T')[0],
+                                endDate: '',
+                                collaborators: '',
+                                fundingSource: '',
+                                budget: '',
+                                notes: '',
+                                tags: [],
+                                milestones: []
+                            });
+                            localStorage.setItem('dbaCompleteTracker', JSON.stringify(dba));
+                            this.showToast('🔬 Also added to DBA Research Database!');
+                        }
+                    } catch (e) {
+                        console.error('Error syncing to DBA tracker:', e);
+                    }
+                }
+            },
+            
+            renderResearch() {
+                const list = document.getElementById('research-list-preview');
+                if (!list) return; // Element might not exist yet
+                
+                if (this.data.research.length === 0) {
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--brown); font-size: 0.9rem;">No research ideas yet. Add one above!</div>';
+                    return;
+                }
+                
+                // Show only the 3 most recent
+                const recent = this.data.research.slice(-3).reverse();
+                
+                list.innerHTML = recent.map(item => `
+                    <div style="background: rgba(255, 248, 240, 0.5); border-left: 3px solid var(--lavender); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;">
+                        <div style="font-weight: 600; color: var(--dark-brown); margin-bottom: 0.25rem; font-size: 0.95rem;">${item.title}</div>
+                        <div style="font-size: 0.8rem; color: var(--brown);">
+                            ${new Date(item.timestamp).toLocaleDateString()}
+                        </div>
+                    </div>
+                `).join('') + (this.data.research.length > 3 ? `
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="openDBAResearch()" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                            View All ${this.data.research.length} Ideas →
+                        </button>
+                    </div>
+                ` : '');
+            },
+            
+            // Fitness
+            addWorkout() {
+                const type = prompt('Workout type (e.g., Cardio, Strength, Yoga):');
+                if (!type) return;
+                
+                const duration = prompt('Duration (minutes):');
+                const notes = prompt('Notes (optional):') || '';
+                
+                this.data.workouts.push({
+                    id: Date.now(),
+                    type,
+                    duration: parseInt(duration) || 0,
+                    notes,
+                    timestamp: new Date().toISOString()
+                });
+                this.saveData();
+                this.renderWorkouts();
+                this.showToast('💪 Workout logged!');
+            },
+            
+            renderWorkouts() {
+                const list = document.getElementById('workout-list-preview');
+                if (!list) return; // Element might not exist yet
+                
+                if (this.data.workouts.length === 0) {
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--brown); font-size: 0.9rem;">No workouts logged yet. Add one above!</div>';
+                    return;
+                }
+                
+                // Show only the 3 most recent
+                const recent = this.data.workouts.slice(-3).reverse();
+                
+                list.innerHTML = recent.map(w => `
+                    <div style="background: rgba(255, 248, 240, 0.5); border-left: 3px solid var(--sage); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <div style="font-weight: 600; color: var(--dark-brown); margin-bottom: 0.25rem; font-size: 0.95rem;">${w.type}</div>
+                                <div style="font-size: 0.8rem; color: var(--brown);">
+                                    ${w.duration} min • ${new Date(w.timestamp).toLocaleDateString()}
+                                </div>
+                            </div>
+                            <div style="font-size: 1.5rem;">💪</div>
+                        </div>
+                    </div>
+                `).join('') + (this.data.workouts.length > 3 ? `
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="window.open('marathon_tracker.html', 'marathon_tracker')" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                            View All ${this.data.workouts.length} Workouts →
+                        </button>
+                    </div>
+                ` : '');
+            },
+            
+            // Crafts
+            addCraftProject() {
+                const name = prompt('Project name:');
+                if (!name) return;
+                
+                const type = prompt('Type (Sewing/Yarn/Needlework/Other):') || 'Other';
+                const notes = prompt('Notes (optional):') || '';
+                
+                this.data.craftProjects.push({
+                    id: Date.now(),
+                    name,
+                    type,
+                    status: 'planning',
+                    notes,
+                    timestamp: new Date().toISOString()
+                });
+                this.saveData();
+                this.renderCrafts();
+                this.showToast('🧵 Project added!');
+            },
+            
+            updateCraftStatus(id, newStatus) {
+                const project = this.data.craftProjects.find(p => p.id === id);
+                if (project) {
+                    project.status = newStatus;
+                    this.saveData();
+                    this.renderCrafts();
+                }
+            },
+            
+            deleteCraftProject(id) {
+                if (confirm('Delete this craft project?')) {
+                    this.data.craftProjects = this.data.craftProjects.filter(p => p.id !== id);
+                    this.saveData();
+                    this.renderCrafts();
+                    this.showToast('🗑️ Project deleted');
+                }
+            },
+            
+            renderCrafts() {
+                const list = document.getElementById('craft-list');
+                if (this.data.craftProjects.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><div style="font-size: 3rem; margin-bottom: 1rem;">🧵</div><h3 style="color: var(--deep-rose);">No projects yet</h3><p>Start your first craft project!</p></div>';
+                    return;
+                }
+                
+                const statusGroups = {
+                    planning: [],
+                    'in-progress': [],
+                    completed: []
+                };
+                
+                this.data.craftProjects.forEach(p => {
+                    if (!statusGroups[p.status]) statusGroups[p.status] = [];
+                    statusGroups[p.status].push(p);
+                });
+                
+                const statusColors = {
+                    planning: 'var(--lavender)',
+                    'in-progress': 'var(--peach)',
+                    completed: 'var(--sage)'
+                };
+                
+                const statusIcons = {
+                    planning: '📝',
+                    'in-progress': '🧵',
+                    completed: '✨'
+                };
+                
+                let html = '';
+                Object.entries(statusGroups).forEach(([status, projects]) => {
+                    if (projects.length === 0) return;
+                    
+                    const statusTitle = status.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    
+                    html += `
+                        <div class="card">
+                            <div style="font-weight: 600; color: var(--deep-rose); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                ${statusIcons[status]} ${statusTitle} (${projects.length})
+                            </div>
+                            ${projects.map(p => `
+                                <div class="card" style="background: rgba(255,248,240,0.5); border-left: 4px solid ${statusColors[status]}; margin-bottom: 0.75rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600; color: var(--dark-brown); margin-bottom: 0.25rem;">${p.name}</div>
+                                            <div style="font-size: 0.85rem; color: var(--brown);">
+                                                ${p.type} • Started ${new Date(p.timestamp).toLocaleDateString()}
+                                            </div>
+                                            ${p.notes ? `<div style="margin-top: 0.5rem; font-size: 0.9rem;">${p.notes}</div>` : ''}
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <select onchange="app.updateCraftStatus(${p.id}, this.value)" style="padding: 0.4rem; border-radius: 6px; border: 1.5px solid var(--rose); font-family: 'Quicksand', sans-serif; font-size: 0.85rem;">
+                                                <option value="planning" ${p.status === 'planning' ? 'selected' : ''}>Planning</option>
+                                                <option value="in-progress" ${p.status === 'in-progress' ? 'selected' : ''}>In Progress</option>
+                                                <option value="completed" ${p.status === 'completed' ? 'selected' : ''}>Completed</option>
+                                            </select>
+                                            <button onclick="app.deleteCraftProject(${p.id})" style="padding: 0.4rem 0.6rem; border: none; background: rgba(220, 38, 38, 0.1); color: #DC2626; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='rgba(220, 38, 38, 0.2)'" onmouseout="this.style.background='rgba(220, 38, 38, 0.1)'">
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                });
+                
+                list.innerHTML = html;
+            },
+            
+            // Notes
+            saveCurrentNote() {
+                this.data.notes = document.getElementById('note-content').value;
+                this.saveData();
+                this.showToast('💾 Note saved!');
+            },
+            
+            loadNote() {
+                document.getElementById('note-content').value = this.data.notes || '';
+            },
+            
+            async sendToGoodNotes() {
+                const noteContent = document.getElementById('note-content').value;
+                
+                if (!noteContent.trim()) {
+                    alert('Please write some notes first!');
+                    return;
+                }
+                
+                this.showToast('📝 Creating Word document...');
+                
+                // Create the Word document
+                try {
+                    const { Document, Packer, Paragraph, TextRun } = docx;
+                    
+                    const lines = noteContent.split('\n');
+                    const paragraphs = lines.map(line => 
+                        new Paragraph({
+                            children: [new TextRun(line || ' ')],
+                            spacing: { after: 200 }
+                        })
+                    );
+                    
+                    const doc = new Document({
+                        sections: [{
+                            properties: {},
+                            children: paragraphs
+                        }]
+                    });
+                    
+                    const blob = await Packer.toBlob(doc);
+                    const filename = `GoodNotes-${new Date().toISOString().split('T')[0]}.docx`;
+                    
+                    // Check if we can use the Web Share API (iOS/Android)
+                    if (navigator.share && navigator.canShare) {
+                        try {
+                            const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                            
+                            if (navigator.canShare({ files: [file] })) {
+                                await navigator.share({
+                                    files: [file],
+                                    title: 'Notes for GoodNotes',
+                                    text: 'Import this to GoodNotes'
+                                });
+                                this.showToast('✅ Shared! Select GoodNotes from the menu');
+                                return;
+                            }
+                        } catch (error) {
+                            console.log('Share failed, falling back to download:', error);
+                        }
+                    }
+                    
+                    // Fallback: regular download
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    
+                    this.showToast('✅ Word document ready for GoodNotes!');
+                    
+                    setTimeout(() => {
+                        alert(`📝 Success! "${filename}" has been downloaded.\n\n✨ To add to GoodNotes:\n\n1. Open GoodNotes on your device\n2. Tap the + button\n3. Select "Import"\n4. Choose "${filename}" from your Downloads folder\n5. GoodNotes will convert it to a page!\n\n💡 Tip: On iPad, you can drag the file directly into GoodNotes.`);
+                    }, 500);
+                    
+                } catch (error) {
+                    console.error('Error creating docx:', error);
+                    const blob = new Blob([noteContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'notes-for-goodnotes.txt';
+                    a.click();
+                    this.showToast('Downloaded as text file');
+                }
+            },
+            
+            // UI
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+        };
+        
+        // Helper function to open DBA tracker to Research tab
+        function openDBAResearch() {
+            // Open DBA tracker in new window
+            const win = window.open('dba_tracker_embedded.html', 'dba_tracker');
+            
+            if (!win) {
+                alert('Pop-up blocked! Please allow pop-ups for this site, or right-click the button and select "Open in New Tab"');
+                return;
+            }
+            
+            // Try to set it to research view after it loads
+            setTimeout(() => {
+                try {
+                    if (win && !win.closed) {
+                        // Send message to set view to research
+                        win.postMessage({ action: 'navigateToResearch' }, '*');
+                    }
+                } catch (e) {
+                    console.log('Could not auto-navigate to research tab');
+                }
+            }, 1000);
+        }
+        
+        // Helper function to open calendar
+        function openCalendar() {
+            // Try to open calendar from same directory
+            const win = window.open('./calendar_integration.html', 'calendar_window');
+            
+            if (!win) {
+                alert('Pop-up blocked! Please allow pop-ups for this site.\n\nOr manually open calendar_integration.html from your Life Planner folder.');
+                return;
+            }
+        }
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+            
+            // Add Export/Import toolbar
+            const toolbar = document.createElement('div');
+            toolbar.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; display: flex; gap: 0.5rem; z-index: 9999;';
+            toolbar.innerHTML = `
+                <button onclick="exportAppData()" style="background: #8BAF8A; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                    📤 Export Data
+                </button>
+                <button onclick="importAppData()" style="background: #D4748A; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                    📥 Import Data
+                </button>
+            `;
+            document.body.appendChild(toolbar);
+        });
+        
+        function exportAppData() {
+            const data = localStorage.getItem('lifePlannerData');
+            if (!data || data === '{}') {
+                alert('No data found to export!');
+                return;
+            }
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'life-planner-data.json';
+            a.click();
+            alert('✅ Data exported as "life-planner-data.json"!\n\nTo use on another device or the live site:\n1. Open the live site\n2. Click "Import Data"\n3. Select this file\n4. Your data will appear!');
+        }
+        
+        function importAppData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        localStorage.setItem('lifePlannerData', JSON.stringify(data));
+                        alert('✅ Data imported successfully! Refreshing...');
+                        location.reload();
+                    } catch (err) {
+                        alert('❌ Error importing. Make sure you selected the correct .json file.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+        
+        // Auto-save notes
+        document.getElementById('note-content')?.addEventListener('input', () => {
+            app.data.notes = document.getElementById('note-content').value;
+            app.saveData();
+        });
+    </script>
+</body>
+</html>
